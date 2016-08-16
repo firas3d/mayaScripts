@@ -1,0 +1,244 @@
+global proc maya2AEGetTransformationSep()
+{
+    $sel = `ls -sl -fl`;
+    if (`size($sel)`) {
+
+		//single frame
+        if (`radioButton -q -sl maya2AEClipboardRadioS`)
+        {
+            vector $pos = `xform -q -ws -t ($sel[0])`;
+
+            $str = "Adobe After Effects 8.0 Keyframe Data\n\n";
+            $str = $str + "Transform\tX Position\n";
+            $str = $str + "\tFrame\t\t\n";
+            $str = $str + "\t\t"+$pos.x+"\t\n\n";
+
+            $str = $str + "Transform\tY Position\n";
+            $str = $str + "\tFrame\t\t\n";
+            $str = $str + "\t\t"+(-$pos.y)+"\t\n\n";
+
+            $str = $str + "Transform\tZ Position\n";
+            $str = $str + "\tFrame\t\t\n";
+            $str = $str + "\t\t"+(-$pos.z)+"\t\n\n";
+
+            $str = $str + "End of Keyframe Data\n";
+
+            scrollField -e -text $str maya2AEClipboardSF;
+            //print $str;
+        }
+        //animation baked
+        if (`radioButton -q -sl maya2AEClipboardRadioA`)
+        {
+
+            $min = `playbackOptions -q -min`;
+            $max = `playbackOptions -q -max`;
+            $fps=25;
+            $framePerSecond= `currentUnit -q -time`;
+            	if ($framePerSecond == "pal") $fps=25;
+            $w = `getAttr defaultResolution.width`;
+            $h = `getAttr defaultResolution.height`;
+            $r = `getAttr defaultResolution.pixelAspect`;
+
+
+            $str = "Adobe After Effects 8.0 Keyframe Data\n\n";
+            $str = $str + "\tUnits Per Second\t"+$fps+"\n";
+            $str = $str + "\tSource Width\t"+$w+"\n";
+            $str = $str + "\tSource Height\t"+$h+"\n";
+			$str = $str + "\tSource Pixel Aspect Ratio\t"+$r+"\n";
+			$str = $str + "\tComp Pixel Aspect Ratio\t"+$r+"\n\n";
+
+            $str = $str + "Transform\tX Position\n";
+            $str = $str + "\tFrame\t\t\n";
+
+            for ($frame = $min;$frame <=$max;$frame++)
+       		{
+                vector $pos = `getAttr -time $frame ($sel[0]+".translate")`;
+                $str = $str + "\t"+$frame+"\t"+$pos.x+"\t\n";
+            }
+
+            $str = $str + "\nTransform\tY Position\n";
+            $str = $str + "\tFrame\t\t\n";
+
+            for ($frame = $min;$frame <=$max;$frame++)
+       		{
+                vector $pos = `getAttr -time $frame ($sel[0]+".translate")`;
+                $str = $str + "\t"+$frame+"\t"+$pos.y+"\t\n";
+            }
+
+            $str = $str + "\nTransform\tZ Position\n";
+            $str = $str + "\tFrame\t\t\n";
+
+            for ($frame = $min;$frame <=$max;$frame++)
+       		{
+                vector $pos = `getAttr -time $frame ($sel[0]+".translate")`;
+                $str = $str + "\t"+$frame+"\t"+$pos.z+"\t\n";
+            }
+
+            $str = $str + "End of Keyframe Data\n";
+
+            scrollField -e -text $str maya2AEClipboardSF;
+            //print $str;
+        }
+		
+		
+		//animation keyframes
+        if (`radioButton -q -sl maya2AEClipboardRadioK`)
+        {
+
+            $min = `playbackOptions -q -min`;
+            $max = `playbackOptions -q -max`;
+            $fps=25;
+            $framePerSecond= `currentUnit -q -time`;
+            	if ($framePerSecond == "pal") $fps=25;
+            $w = `getAttr defaultResolution.width`;
+            $h = `getAttr defaultResolution.height`;
+            $r = `getAttr defaultResolution.pixelAspect`;
+
+
+            $str = "Adobe After Effects 8.0 Keyframe Data\n\n";
+            $str = $str + "\tUnits Per Second\t"+$fps+"\n";
+            $str = $str + "\tSource Width\t"+$w+"\n";
+            $str = $str + "\tSource Height\t"+$h+"\n";
+			$str = $str + "\tSource Pixel Aspect Ratio\t"+$r+"\n";
+			$str = $str + "\tComp Pixel Aspect Ratio\t"+$r+"\n\n";
+
+            $str = $str + "Transform\tX Position\n";
+            $str = $str + "\tFrame\t\t\n";
+
+            for ($frame = $min;$frame <=$max;$frame++)
+       		{
+                vector $pos = `getAttr -time $frame ($sel[0]+".translate")`;
+                $str = $str + "\t"+$frame+"\t"+$pos.x+"\t\n";
+            }
+
+            $str = $str + "\nTransform\tY Position\n";
+            $str = $str + "\tFrame\t\t\n";
+
+            for ($frame = $min;$frame <=$max;$frame++)
+       		{
+                vector $pos = `getAttr -time $frame ($sel[0]+".translate")`;
+                $str = $str + "\t"+$frame+"\t"+$pos.y+"\t\n";
+            }
+
+            $str = $str + "\nTransform\tZ Position\n";
+            $str = $str + "\tFrame\t\t\n";
+
+            for ($frame = $min;$frame <=$max;$frame++)
+       		{
+                vector $pos = `getAttr -time $frame ($sel[0]+".translate")`;
+                $str = $str + "\t"+$frame+"\t"+$pos.z+"\t\n";
+            }
+
+            $str = $str + "End of Keyframe Data\n";
+
+            scrollField -e -text $str maya2AEClipboardSF;
+            //print $str;
+        }
+
+    }
+    else
+    {
+        print "man..select one object or component";
+    }
+}
+
+global proc maya2AEGetTransformationNonSep()
+{
+    $sel = `ls -sl -fl`;
+    if (`size($sel)`) {
+
+        if (`radioButton -q -sl maya2AEClipboardRadioS`)
+        {
+            vector $pos = `xform -q -ws -t ($sel[0])`;
+
+            $str = "Adobe After Effects 8.0 Keyframe Data\n\n";
+            $str = $str + "Transform\tPosition\n";
+            $str = $str + "\tFrame\tX pixels\tY pixels\tZ pixels\n";
+
+            $str = $str + "\t\t"+$pos.x+"\t"+(-$pos.y)+"\t"+(-$pos.z)+"\n";
+
+            $str = $str + "End of Keyframe Data\n";
+
+            scrollField -e -text $str maya2AEClipboardSF;
+            //print $str;
+        }
+
+        //animation
+        if (`radioButton -q -sl maya2AEClipboardRadioA`)
+        {
+        	$min = `playbackOptions -q -min`;
+            $max = `playbackOptions -q -max`;
+            $fps=25;
+            $framePerSecond= `currentUnit -q -time`;
+            	if ($framePerSecond == "pal") $fps=25;
+            $w = `getAttr defaultResolution.width`;
+            $h = `getAttr defaultResolution.height`;
+            $r = `getAttr defaultResolution.pixelAspect`;
+
+			$str = "Adobe After Effects 8.0 Keyframe Data\n\n";
+            $str = $str + "\tUnits Per Second\t"+$fps+"\n";
+            $str = $str + "\tSource Width\t"+$w+"\n";
+            $str = $str + "\tSource Height\t"+$h+"\n";
+			$str = $str + "\tSource Pixel Aspect Ratio\t"+$r+"\n";
+			$str = $str + "\tComp Pixel Aspect Ratio\t"+$r+"\n\n";
+
+            $str = $str + "Transform\tPosition\n";
+            $str = $str + "\tFrame\tX pixels\tY pixels\tZ pixels\n";
+
+            for ($frame = $min;$frame <=$max;$frame++)
+            	{
+                	vector $pos = `getAttr -time $frame ($sel[0]+".translate")`;
+            		$str = $str + "\t"+$frame+"\t"+$pos.x+"\t"+(-$pos.y)+"\t"+(-$pos.z)+"\n";
+            	}
+            $str = $str + "End of Keyframe Data\n";
+
+            scrollField -e -text $str maya2AEClipboardSF;
+            //print $str;
+        }
+
+    }
+    else
+    {
+        print "Man..select transform data";
+    }
+}
+
+
+global proc maya2AEClipboard()
+{
+	float $c1[] = {.95, .8, 0.8};
+	string $maya2AEClipboardVer = "0.2 Beta";
+	string $camNotes;
+
+	if ((`window -ex maya2AEClipboardWin`) == true) {
+		deleteUI maya2AEClipboardWin;
+		windowPref -remove maya2AEClipboardWin;
+	}
+
+    window -t ("maya2AEClipboard --------- ver"+$maya2AEClipboardVer) -w 400 -h 130 maya2AEClipboardWin;
+    columnLayout -adjustableColumn 1 -columnAlign "center" -rowSpacing 2 -columnAttach "both" 5;
+    	rowLayout -numberOfColumns  2 -columnWidth2 200 200;
+            button  -w 180 -l "non-separate Channels" -c maya2AEGetTransformationNonSep;
+            button -w 180-l "separate Channels" -c maya2AEGetTransformationSep;
+
+        setParent ..;
+        separator;
+        rowLayout -numberOfColumns  3 -columnWidth3 110 110 110;
+            string $collection1 = `radioCollection`;
+            string $rb1, $rb2;
+            $rb1 = `radioButton -label "single frame" -sl maya2AEClipboardRadioS`;
+            $rb2 = `radioButton -label "animation Backed" maya2AEClipboardRadioA`;
+			$rb3 = `radioButton -label "animation Keys" maya2AEClipboardRadioK`;
+        setParent ..;
+        rowLayout -numberOfColumns  3 -columnWidth3 110 110 110 ;
+            checkBox -label "Translate" -v 1 -en 1;
+            checkBox -label "Rotate" -en 0;
+            checkBox -label "Scale" -en 0;
+        setParent ..;
+
+
+    scrollField -wordWrap true -text ("") -editable false maya2AEClipboardSF;
+
+    showWindow maya2AEClipboardWin;
+
+}maya2AEClipboard;
