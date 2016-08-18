@@ -1,0 +1,29 @@
+//create id attr for all object name
+$sel = `ls -sl`;
+$id = 0;
+for ($obj in $sel) {
+	addAttr -ln "id"  -at long  -min 0 -max 13 -dv 0 $obj;
+	setAttr -e-keyable true ($obj+".id");
+	setAttr  ($obj+".id") $id;
+	$id ++;
+}
+
+//create ctrl object with .num attribute
+$ctrlObj = "textLoopCtrl";
+spaceLocator -p 0 0 0 -n $ctrlObj;
+addAttr -ln "num"  -at long  $ctrlObj;
+setAttr -e-keyable true ($ctrlObj+".num");
+
+//assign uniq id number (and key it-for strange reason its changing)
+
+for ($obj in $sel) {
+
+	$conName = ("cond_"+$obj);
+	$objName = $obj;
+	createNode -n $conName condition;
+	connectAttr -f ($ctrlObj+".num") ($conName+".firstTerm");
+	connectAttr -f ($objName+".id") ($conName+".secondTerm");
+	setAttr ($conName+".colorIfTrueR") 1;
+	setAttr ($conName+".colorIfFalseR") 0;
+	connectAttr -f ($conName+".outColorR") ($objName+".visibility");
+}

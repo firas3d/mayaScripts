@@ -1,0 +1,248 @@
+global proc applyAttrPercent()
+{
+	int $selectedIndex[];
+	//$selectedIndex = `textScrollList -q -selectIndexedItem  attrPrecentScrollList`;
+	$selectedItem = `textScrollList -q -allItems  attrPrecentScrollList`;
+	$selectedSize = size($selectedIndex);
+
+	$ctrlObj = `textField -q -text assignCtrlField`;
+	$attrLink = `textField -q -text assignAttrField`;
+	
+	$normalizedPercent = `checkBox -q -v normalizedPercentCheckBox`;
+	$normalizeMode = `checkBox -q -v normalizedPercentCheckBox`;
+    $annotationMode = `checkBox -q -v annotationsCheckBox`;
+
+	//create attrName attr for controller
+	$i = 0;
+    $size = size($selectedItem);
+	for ($obj in $selectedItem) {
+		string $attrName = ("percent_"+$i);
+		if (!(`attributeExists $attrName $ctrlObj`))
+			addAttr -ln ($attrName) -at "float" -dv 0 $ctrlObj;
+		setAttr -e -keyable true ($ctrlObj+"."+$attrName);
+		setAttr  ($ctrlObj+"."+$attrName) 100;
+		$i++;
+		print ($obj);
+	}
+	
+	//add normalize option
+	string $normalizeModeName = ("normalizeMode");
+	if (!(`attributeExists $normalizeModeName $ctrlObj`))
+		addAttr -ln ($normalizeModeName) -at "bool" -dv 1 $ctrlObj;
+	setAttr -e -keyable false -channelBox true ($ctrlObj+"."+$normalizeModeName);
+	
+	setAttr ($ctrlObj+"."+$normalizeModeName) $normalizeMode;
+	
+	
+	//add percent Factor normalized
+	string $norFactorName = ("normalizedFactor");
+	if (!(`attributeExists $norFactorName $ctrlObj`))
+		addAttr -ln ($norFactorName) -at "float" -dv 1 $ctrlObj;
+	setAttr -e -keyable true ($ctrlObj+"."+$norFactorName);
+	
+	//add percent Factor non-normalized
+	string $factorName = ("nonNormalFactor");
+	if (!(`attributeExists $factorName $ctrlObj`))
+		addAttr -ln ($factorName) -at "float" -dv (0.1) $ctrlObj;
+	setAttr -e -keyable true ($ctrlObj+"."+$factorName);
+
+	
+	//add annotation option
+	string $annotationModeName = ("annotationMode");
+	if (!(`attributeExists $annotationModeName $ctrlObj`))
+		addAttr -ln ($annotationModeName) -at "bool" -dv 1 $ctrlObj;
+	setAttr -e -keyable false -channelBox true ($ctrlObj+"."+$annotationModeName);
+	setAttr ($ctrlObj+"."+$annotationModeName) $annotationMode;
+	
+	//add annotationPos
+	//string $annPosName = ("annPos");
+	//if (!(`attributeExists $annPosName $ctrlObj`))
+	//	addAttr -ln ($annPosName) -at "float" -dv 1 $ctrlObj;
+	//setAttr -e -keyable true ($ctrlObj+"."+$annPosName);
+		
+	
+	//createNodes and connect percent to attribute
+	//create sum node
+	$sum = `createNode -name ("sumAttrs") plusMinusAverage`;
+	
+	$i=0;
+	for ($obj in $selectedItem) {
+ 		connectAttr -f ($ctrlObj+".percent_"+$i) ($sum+".input1D["+$i+"]");
+		
+		$divNode = `createNode -n ("percentDiv_"+$i) multiplyDivide`;
+		setAttr ($divNode+".operation") 2;	//divid opporation
+		connectAttr -f ($ctrlObj+".percent_"+$i)  ($divNode+".input1X");
+		connectAttr -f ($sum+".output1D")  ($divNode+".input2X");
+		
+		$factorNodeNormalized = `createNode -n ("factorMultNormilized_"+$i) multiplyDivide`;
+		connectAttr -f ($divNode+".outputX") ($factorNodeNormalized+".input1X");
+		connectAttr -f ($ctrlObj+"."+$norFactorName) ($factorNodeNormalized+".input2X");
+		
+		//add condition
+		$con =`createNode -n ("con_Nor_"+$obj) condition`;
+		connectAttr -f ($ctrlObj+"."+$normalizeModeName) ($con+".firstTerm");
+		setAttr ($con+".secondTerm") 1; 
+
+		
+		//addfactor node non-normalized
+		$factorNode = `createNode -n ("factorMult_"+$i) multiplyDivide`;
+		connectAttr -f ($ctrlObj+".percent_"+$i) ($factorNode+".input1X");
+		connectAttr -f ($ctrlObj+"."+$factorName) ($factorNode+".input2X");
+		
+		//link factorNode (Normalized and Non-normalized) to object Attr 
+		connectAttr -f ($factorNodeNormalized+".outputX") ($con+".colorIfTrueR");
+		connectAttr -f ($factorNode+".outputX") ($con+".colorIfFalseR");
+		connectAttr -f ($con+".outColorR") ($obj+"."+$attrLink);
+		
+		//annotations
+		string $annShaName = ("ann_"+$ctrlObj+"_"+$i);
+		$annSh = `createNode -n ($annShaName) annotationShape`;
+		string $numToStName = ("num2St_"+$ctrlObj+"_"+$i);
+		$numToSt = `createNode -n $numToStName numToString`;
+		
+		string $annTr[] = `listRelatives -fullPath -parent $annSh`;
+		
+		setAttr ($annSh+".displayArrow") 0;
+		connectAttr -f ($ctrlObj+".percent_"+$i) ($numToSt+".inputNum");
+		connectAttr -f ($numToSt+".output") ($annSh+".text");
+		
+		connectAttr  ($ctrlObj+"."+$annotationModeName) ($annTr[0]+".visibility");
+		
+		
+		parent -r $annTr[0] $obj;
+
+		
+		
+		$i++;
+	}
+	select -r $ctrlObj;
+}
+
+global proc attrPercentCtrl()
+{
+	$sel = `ls -sl`;
+	for ($obj in $sel)
+	 if (nodeType($obj)=="transform")
+		textField -e -tx ($sel[0]) assignCtrlField;
+}
+
+global proc attrPrecentAddItem()
+{
+	$sel = `ls -sl -l`;
+	$allItems = `textScrollList -q -allItems attrPrecentScrollList`;
+	for ($obj in $sel)
+	{
+		$ex = 0;
+		for ($item in $allItems)
+			if ($obj == $item) $ex = 1;
+
+		if ((nodeType($obj)=="transform") && ($ex == 0) ) textScrollList -e -append ($obj) attrPrecentScrollList;
+    }
+}
+
+global proc attrPercentOrder(string $direction)
+{
+	int $selectedIndex[];
+	$selectedIndex = `textScrollList -q -selectIndexedItem  attrPrecentScrollList`;
+	$selectedItem = `textScrollList -q -selectItem  attrPrecentScrollList`;
+	$selectedSize = size($selectedIndex);
+
+	if (($direction=="up") && ( ($selectedIndex[0]) > 1) && ($selectedSize>0))
+	{
+		for ($item in $selectedIndex)
+			textScrollList -e -removeIndexedItem $item attrPrecentScrollList;
+		textScrollList -e -appendPosition  ($selectedIndex[0]-1) $selectedItem[0] attrPrecentScrollList;
+	}
+
+	if (($direction=="down") && ($selectedSize>0) )
+	{
+		for ($item in $selectedIndex)
+			textScrollList -e -removeIndexedItem $item attrPrecentScrollList;
+		textScrollList -e -appendPosition  ($selectedIndex[0]+1) $selectedItem[0] attrPrecentScrollList;
+    }
+
+	if ($selectedSize>0)
+		textScrollList -e -selectItem ($selectedItem[0]) attrPrecentScrollList;
+}
+
+global proc attrPrecentRemoveItem()
+{
+	int $selectedIndex[];
+	int $listSize;
+	$selectedIndex = `textScrollList -q -selectIndexedItem  attrPrecentScrollList`;
+	$listSize= `textScrollList -q -numberOfItems attrPrecentScrollList`;
+	$selectedSize = size($selectedIndex);
+
+	for ($index in $selectedIndex)
+	{
+		if (($listSize>0)&& ($selectedSize>0)) textScrollList -e -removeIndexedItem $index attrPrecentScrollList;
+		$listSize= `textScrollList -q -numberOfItems attrPrecentScrollList`;
+    }
+	if (($selectedIndex[0]>1) && ($listSize>0) && ($selectedSize>0))
+		textScrollList -e -selectIndexedItem ($selectedIndex[0]-1) attrPrecentScrollList;
+	if (($selectedIndex[0]<=$listSize) && ($listSize>0) && ($selectedSize>0))
+		textScrollList -e -selectIndexedItem ($selectedIndex[0]) attrPrecentScrollList;
+}
+
+global proc loopVisSelectItem()
+{
+	$selectedItem = `textScrollList -q -selectItem  attrPrecentScrollList`;
+	select -r $selectedItem[0];
+}
+
+global proc attrPercent ()
+{
+ 	global string $attrPercentVer = "1.0";
+ 	float $c1[] = {1.0, 1.0, 0.9};
+ 	float $c2[] = {1.0, 0.8, 1.0};
+
+	if ((`window -ex attrPercentWin`) == true) {
+		deleteUI attrPercentWin;
+   		windowPref -remove attrPercentWin;
+	}
+
+ 	window  -t ("Attrs percent ver "+$attrPercentVer) -w 280 -h 300 -s 1 attrPercentWin;
+	columnLayout  -columnAlign  "left"  -columnAttach "both" 5 -rowSpacing 4 -adjustableColumn true -w 200;;
+
+	text -label "controler Object :";
+	rowLayout  -columnAlign2 "center" "center" -numberOfColumns 2 -columnWidth2 230 30;
+		textField -w 230 -ed 0 -en 1 assignCtrlField;
+		button -label "<<" -w 33 -h 21 -c ("attrPercentCtrl()");
+	setParent ..;
+
+	text -label "Link Attribute :";
+	rowLayout  -columnAlign2 "center" "center" -numberOfColumns 2 -columnWidth2 230 30;
+		textField -w 230 -ed 1 -en 1 -text "scaleY" assignAttrField;
+		button -label "<<" -w 33 -h 21 -c ("attrPercentLinkAttrCtrl()");
+	setParent ..;
+
+	
+	separator;
+	paneLayout -h 120;
+	textScrollList -allowMultiSelection 0 -numberOfRows 8 -showIndexedItem 4 -doubleClickCommand ("loopVisSelectItem()")attrPrecentScrollList;
+	popupMenu -parent attrPrecentScrollList;
+			menuItem -label "Clear list" -c ("textScrollList -e -removeAll attrPrecentScrollList;");
+
+	setParent ..;
+	rowLayout  -columnAlign4 "center" "center" "center" "center" -numberOfColumns 4 -columnWidth4 104 104 30 30;
+	button -l "Add Selected" -w 95 -h 23 -c ("attrPrecentAddItem();");
+	button -l "Remove item" -w 95 -h 23 -c ("attrPrecentRemoveItem()");
+
+	symbolButton -image "moveButtonUp.png" -w 23 -h 23 -c ("attrPercentOrder(\"up\")");
+	symbolButton -image "moveButtonDown.png" -w 23 -h 23 -c ("attrPercentOrder(\"down\")");
+
+	setParent ..;
+	columnLayout  -columnAlign  "center" -rowSpacing 4 -adjustableColumn true -w 200;;
+	separator;
+
+	rowLayout  -columnAlign2 "center" "center" -numberOfColumns 2 -columnWidth2 130 150;
+	checkBox -label "normalized" -align "center" -v 1 normalizedPercentCheckBox;
+    checkBox -label "annotations" -align "center" -v 1 annotationsCheckBox;
+	setParent ..;
+	setParent ..;
+	columnLayout  -columnAlign  "center" -rowSpacing 0 -adjustableColumn true -w 200;;
+
+	button -l "link attr percent" -bgc $c2[0] $c2[1] $c2[2] -c ("applyAttrPercent()");
+	showWindow attrPercentWin;
+}
+attrPercent;

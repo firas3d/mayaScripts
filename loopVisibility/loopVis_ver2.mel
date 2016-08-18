@@ -1,0 +1,167 @@
+global proc applyLoopVis()
+{
+	int $selectedIndex[];
+	//$selectedIndex = `textScrollList -q -selectIndexedItem  loopVisScrollList`;
+	$selectedItem = `textScrollList -q -allItems  loopVisScrollList`;
+	$selectedSize = size($selectedIndex);
+
+	$eq = `checkBox -q -v equlizerStyleCheckBox`;
+
+	$ctrlObj = `textField -q -text assignCtrlField`;
+
+	//create id attr for all object name
+	$id = 0;
+    $size = size($selectedItem);
+	for ($obj in $selectedItem) {
+		if (!(`attributeExists "id" $obj`))
+			addAttr -ln "id"  -at long  -min 0 -max ($size-1) -dv 0 $obj;
+		setAttr -e-keyable true ($obj+".id");
+		setAttr  ($obj+".id") $id;
+		$id ++;
+		print ($obj);
+	}
+
+	//create num attr on ctrl object
+	if (!(`attributeExists "num" $ctrlObj`))
+		addAttr -ln "num"  -at long  $ctrlObj;
+	setAttr -e-keyable true ($ctrlObj+".num");
+
+	//assign uniq id number (and key it-for strange reason its changing)
+
+	if ($eq == 1) $eq=2;
+	for ($obj in $selectedItem) {
+
+		$conName = ("cond_"+$obj);
+		$objName = $obj;
+		$conNode = `createNode -n $conName condition`;
+		connectAttr -f ($ctrlObj+".num") ($conNode+".firstTerm");
+		connectAttr -f ($objName+".id") ($conNode+".secondTerm");
+		setAttr ($conNode+".colorIfTrueR") 1;
+		setAttr ($conNode+".colorIfFalseR") 0;
+		setAttr ($conNode+".operation") $eq;
+		connectAttr -f ($conNode+".outColorR") ($objName+".visibility");
+	}
+	select -r $ctrlObj;
+}
+
+global proc loopVisAssignCtrl()
+{
+	$sel = `ls -sl`;
+	for ($obj in $sel)
+	 if (nodeType($obj)=="transform")
+		textField -e -tx ($sel[0]) assignCtrlField;
+}
+
+global proc loopVisAddItem()
+{
+	$sel = `ls -sl -l`;
+	$allItems = `textScrollList -q -allItems loopVisScrollList`;
+	for ($obj in $sel)
+	{
+		$ex = 0;
+		for ($item in $allItems)
+			if ($obj == $item) $ex = 1;
+
+		if ((nodeType($obj)=="transform") && ($ex == 0) ) textScrollList -e -append ($obj) loopVisScrollList;
+    }
+}
+
+global proc loopVisOrder(string $direction)
+{
+	int $selectedIndex[];
+	$selectedIndex = `textScrollList -q -selectIndexedItem  loopVisScrollList`;
+	$selectedItem = `textScrollList -q -selectItem  loopVisScrollList`;
+	$selectedSize = size($selectedIndex);
+
+	if (($direction=="up") && ( ($selectedIndex[0]) > 1) && ($selectedSize>0))
+	{
+		for ($item in $selectedIndex)
+			textScrollList -e -removeIndexedItem $item loopVisScrollList;
+		textScrollList -e -appendPosition  ($selectedIndex[0]-1) $selectedItem[0] loopVisScrollList;
+	}
+
+	if (($direction=="down") && ($selectedSize>0) )
+	{
+		for ($item in $selectedIndex)
+			textScrollList -e -removeIndexedItem $item loopVisScrollList;
+		textScrollList -e -appendPosition  ($selectedIndex[0]+1) $selectedItem[0] loopVisScrollList;
+    }
+
+	if ($selectedSize>0)
+		textScrollList -e -selectItem ($selectedItem[0]) loopVisScrollList;
+}
+
+global proc loopVisRemoveItem()
+{
+	int $selectedIndex[];
+	int $listSize;
+	$selectedIndex = `textScrollList -q -selectIndexedItem  loopVisScrollList`;
+	$listSize= `textScrollList -q -numberOfItems loopVisScrollList`;
+	$selectedSize = size($selectedIndex);
+
+	for ($index in $selectedIndex)
+	{
+		if (($listSize>0)&& ($selectedSize>0)) textScrollList -e -removeIndexedItem $index loopVisScrollList;
+		$listSize= `textScrollList -q -numberOfItems loopVisScrollList`;
+    }
+	if (($selectedIndex[0]>1) && ($listSize>0) && ($selectedSize>0))
+		textScrollList -e -selectIndexedItem ($selectedIndex[0]-1) loopVisScrollList;
+	if (($selectedIndex[0]<=$listSize) && ($listSize>0) && ($selectedSize>0))
+		textScrollList -e -selectIndexedItem ($selectedIndex[0]) loopVisScrollList;
+}
+
+global proc loopVisSelectItem()
+{
+	$selectedItem = `textScrollList -q -selectItem  loopVisScrollList`;
+	select -r $selectedItem[0];
+}
+
+global proc loopVis ()
+{
+ 	global string $loopVisVer = "2.0";
+ 	float $c1[] = {1.0, 1.0, 0.9};
+ 	float $c2[] = {1.0, 0.8, 1.0};
+
+	if ((`window -ex loopVisWin`) == true) {
+		deleteUI loopVisWin;
+   		windowPref -remove loopVisWin;
+	}
+
+ 	window  -t ("loopVisibility ver "+$loopVisVer) -w 280 -h 300 -s 1 loopVisWin;
+	columnLayout  -columnAlign  "left"  -columnAttach "both" 5 -rowSpacing 4 -adjustableColumn true -w 200;;
+
+	text -label "controler Object :";
+
+	rowLayout  -columnAlign2 "center" "center" -numberOfColumns 2 -columnWidth2 230 30;
+	textField -w 230 -ed 0 -en 1 assignCtrlField;
+	button -label "<<" -w 33 -h 21 -c ("loopVisAssignCtrl()");
+	setParent ..;
+	separator;
+	paneLayout -h 120;
+	textScrollList -allowMultiSelection 0 -numberOfRows 8 -showIndexedItem 4 -doubleClickCommand ("loopVisSelectItem()")loopVisScrollList;
+	popupMenu -parent loopVisScrollList;
+			menuItem -label "Clear list" -c ("textScrollList -e -removeAll loopVisScrollList;");
+
+	setParent ..;
+	rowLayout  -columnAlign4 "center" "center" "center" "center" -numberOfColumns 4 -columnWidth4 104 104 30 30;
+	button -l "Add Selected" -w 95 -h 23 -c ("loopVisAddItem();");
+	button -l "Remove item" -w 95 -h 23 -c ("loopVisRemoveItem()");
+
+	symbolButton -image "moveButtonUp.png" -w 23 -h 23 -c ("loopVisOrder(\"up\")");
+	symbolButton -image "moveButtonDown.png" -w 23 -h 23 -c ("loopVisOrder(\"down\")");
+
+	setParent ..;
+	columnLayout  -columnAlign  "center" -rowSpacing 4 -adjustableColumn true -w 200;;
+	separator;
+
+	rowLayout  -columnAlign2 "center" "center" -numberOfColumns 2 -columnWidth2 130 150;
+	checkBox -label "Equlizer style" -align "center" equlizerStyleCheckBox;
+    checkBox -label "Loop attribute" -align "center" smoothTangentCheckBox;
+	setParent ..;
+	setParent ..;
+	columnLayout  -columnAlign  "center" -rowSpacing 0 -adjustableColumn true -w 200;;
+
+	button -l "loop Visibility" -bgc $c2[0] $c2[1] $c2[2] -c ("applyLoopVis()");
+	showWindow loopVisWin;
+}
+loopVis;
