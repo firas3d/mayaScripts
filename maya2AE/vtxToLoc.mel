@@ -1,0 +1,26 @@
+
+string $vtx[] = `ls -sl -fl`;
+$numVerts=size($vtx);
+
+$loc = `spaceLocator -p 0 0 0`;
+
+float $px=0;
+float $py=0;
+float $pz=0;
+
+ for ($v in $vtx)
+ {
+  float $pos[] = `xform -q -ws -t $v`;
+  $px += $pos[0];
+  $py += $pos[1];
+  $pz += $pos[2];
+ }
+
+ vector $center = <<($px/$numVerts), ($py/$numVerts),
+                        ($pz/$numVerts)>>;
+
+ //print ("center point of "+$poly[0]+ " is: "+ $center);
+
+ xform -os -t ($center.x) ($center.y) ($center.z)
+                        $loc[0];
+

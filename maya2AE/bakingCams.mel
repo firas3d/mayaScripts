@@ -1,0 +1,46 @@
+global proc string getNameSpace(string $stringName,int $index)
+{
+	string $buffer[];
+	$numTokens = `tokenize ($stringName) (":") ($buffer)`;
+
+	return $buffer[$index];
+}
+
+global proc bakingCams()
+{
+	string $bakeCams[];
+	string $parentCons[];
+	$i=0;
+
+	$sel = `ls -sl`;
+	for ($cam in $sel)
+	{
+		$camShape = `listRelatives -s $cam`;
+		if ((`objectType -isType "transform" $cam`) && (`objectType -isType "camera" $camShape[0]`) )
+		{
+			$bakeCam = `camera -n ("bake"+getNameSpace($cam,0))`;
+			$pc = `parentConstraint $cam $bakeCam[0]`;
+			$parentCons[$i] = $pc[0];
+			connectAttr -f ($camShape[0]+".focalLength") ($bakeCam[1]+".focalLength");
+			connectAttr -f ($camShape[0]+".cameraAperture.horizontalFilmAperture") ($bakeCam[1]+".cameraAperture.horizontalFilmAperture");
+			connectAttr -f ($camShape[0]+".cameraAperture.verticalFilmAperture") ($bakeCam[1]+".cameraAperture.verticalFilmAperture");
+
+			$bakeCams[$i] = $bakeCam[0];
+			$i++;
+		}
+
+	}
+	print ("cameras to bake :\n");
+	print $bakeCams;
+
+	select -r  $bakeCams;
+	$min = `playbackOptions -q   -min` ;
+	$max = `playbackOptions -q   -max` ;
+	bakeResults -simulation true  -t ($min+":"+$max) -sampleBy 1 -disableImplicitControl true -preserveOutsideKeys false -sparseAnimCurveBake false -removeBakedAttributeFromLayer false -bakeOnOverrideLayer false -controlPoints false -shape true;
+	filterCurve;
+	delete -staticChannels -unitlessAnimationCurves false -hierarchy none -controlPoints 0 -shape 1;
+	delete $parentCons;
+
+
+}
+bakingCams;
