@@ -1,0 +1,85 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<link rel="StyleSheet" href="Equation%20of%20a%20Circle%20from%203%20Points%20%282%20dimensions%29_files/pdbstyle.css" type="text/css" media="all">
+<title>Equation of a Circle from 3 Points (2 dimensions)</title></head><body bgcolor="#ffffff">
+<center>
+<h1>Equation of a Circle from 3 Points<br>(2 dimensions)</h1>
+Written by <a href="http://local.wasp.uwa.edu.au/%7Epbourke/geometry/">Paul Bourke</a><br>
+January 1990<p>
+See also: <a href="http://local.wasp.uwa.edu.au/%7Epbourke/geometry/spherefrom4/">Sphere from 4 points</a>
+</p></center>
+
+<p></p><hr><p>
+
+</p><p align="justify">
+This note describes a technique for determining the attributes of a circle
+(centre and radius) given three points <b>P<sub>1</sub></b>, 
+<b>P<sub>2</sub></b>, and <b>P<sub>3</sub></b> on a
+plane.</p><p>
+</p>
+
+<center><img src="Equation%20of%20a%20Circle%20from%203%20Points%20%282%20dimensions%29_files/circlefrom31.gif"></center><p>
+
+<b>Calculating Centre</b></p><p>
+
+</p><p slign="justify">
+Two lines can be formed through 2 pairs of the three points, the first passes
+through the first two points <b>P<sub>1</sub></b> 
+and <b>P<sub>2</sub></b>. Line b passes through the
+next two points <b>P<sub>2</sub></b> and <b>P<sub>3</sub></b>. 
+<br>
+The equation of these two lines is
+</p>
+
+<center><img src="Equation%20of%20a%20Circle%20from%203%20Points%20%282%20dimensions%29_files/circlefrom32.gif"></center><p>
+
+where m is the slope of the line given by</p><p>
+
+</p><center><img src="Equation%20of%20a%20Circle%20from%203%20Points%20%282%20dimensions%29_files/circlefrom33.gif"></center><p>
+
+</p><p align="justify">
+The centre of the circle is the intersection of the two lines perpendicular to
+and passing through the midpoints of the lines 
+<b>P<sub>1</sub></b><b>P<sub>2</sub></b> and
+<b>P<sub>2</sub></b> <b>P<sub>3</sub></b>. 
+The perpendicular of a line with slope m has slope -1/m, thus equations of the
+lines perpendicular to lines a and b and passing through the midpoints of
+<b>P<sub>1</sub></b><b>P<sub>2</sub></b> and 
+<b>P<sub>2</sub></b><b>P<sub>3</sub></b> are
+</p>
+
+<center><img src="Equation%20of%20a%20Circle%20from%203%20Points%20%282%20dimensions%29_files/circlefrom34.gif"></center><p>
+
+These two lines intersect at the centre, solving for x gives</p><p>
+
+</p><center><img src="Equation%20of%20a%20Circle%20from%203%20Points%20%282%20dimensions%29_files/circlefrom35.gif"></center><p>
+
+</p><p align="justify">
+Calculate the y value of the centre by substituting the x value into one of the
+equations of the perpendiculars. Alternatively one can also rearrange the
+equations of the perpendiculars and solve for y.
+</p>
+
+<b>Radius</b><p>
+
+</p><p align="justify">
+The radius is easy, for example the point <b>P<sub>1</sub></b> 
+lies on the circle and we know the centre....
+</p>
+
+<b>Notes:</b><p>
+</p><ul>
+<li>The denominator (mb - ma) is only zero when the lines are parallel in which
+case they must be coincident and thus no circle results.<p>
+</p></li><li>If either line is vertical then the corresponding slope is infinite. This can
+be solved by simply rearranging the order of the points so that vertical lines
+do not occur.
+</li></ul>
+
+<b>Source Code</b><p>
+C++ code implemented as MFC (MS Foundation Class) supplied by
+Jae Hun Ryu. <a href="http://local.wasp.uwa.edu.au/%7Epbourke/geometry/circlefrom3/Circle.cpp">Circle.cpp</a>,
+<a href="http://local.wasp.uwa.edu.au/%7Epbourke/geometry/circlefrom3/Circle.h">Circle.h</a>.
+</p><p></p><p>
+</p></body></html>

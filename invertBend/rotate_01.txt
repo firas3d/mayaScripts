@@ -1,0 +1,13 @@
+http://www.velocityreviews.com/forums/t150749-rotate-around-nonorigin-pivot-point.html
+
+
+I use the following method to rotate a point around the origin.
+
+public void rotate(float a) {
+a = (float)Math.toRadians((double)a);
+float xtemp;
+xtemp = (x * (float)Math.cos(a)) - (y * (float)Math.sin(a));
+y = (x * (float)Math.sin(a)) + (y * (float)Math.cos(a));
+x = xtemp;
+}
+
