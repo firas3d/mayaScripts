@@ -1,0 +1,669 @@
+//by : firas
+// smartVtxII :  smartVtxII.mel (c) 2004 Firas Ershead
+//		 www.ztoon.com/3d
+//		 firsershead@hotmail.com
+//
+//		 some codes are based on :
+//		 Revision blendTaper.mel 3.0 7/12/2004 by Mark Behm
+//		 original script : blendTaper.mel (c) 2003 Reel FX Creative Studios
+
+//gloabal vars
+global float $smartVtxTol =0.001;
+global string $BASEobject;
+global string $BASEobjectPaint="";
+global int $directionValueVTX=0;
+global string $newSel[];
+global string $PaintObj;
+global int $stampVtxActive;
+global int $pressure;
+//source SmartVtx;
+
+//=======================================================================================
+//get int ID from world x y z and tolerance
+global proc int xyzToID (string $obj,float $x, float $y, float $z,float $tol)
+	{
+		int $result = 0;
+		global string $BASEobject;
+
+		$originalSel = `ls -sl`;
+		select -r $obj;
+
+		$pos =`getAttr $obj.translate`;
+		$x = $x + $pos[0];
+		$y = $y + $pos[1];
+		$z = $z + $pos[2];
+		polySelectConstraint -m 3 -type 0x0001 -d 1 -db 0 $tol -dp $x $y $z ;
+		$vtxSelected = `ls -sl -fl`;
+		resetPolySelectConstraint;
+
+
+		if (size ($vtxSelected)==1 ) {$result = selectedVtxToID($vtxSelected[0]); }
+		if (size ($vtxSelected)<1 ) {print ("\n No Vtx selected in given Tol="+$tol+"\n");$result=-1;}
+		if (size ($vtxSelected)>1 ) {
+			print("more than one Vtx selected in given xyz, Tolerance="+$tol+"\n");
+			//print($vtxSelected);
+			$result=-2;}
+		select -r $originalSel;
+		return $result;
+
+	} // end of xyzToID
+
+
+//=======================================================================================
+//get int ID from selected Vtxs
+global proc int selectedVtxToID (string $svtx)
+	{
+	int $result;
+	string $tokStr[],$numStr[],$objName;
+	tokenize $svtx "[" $tokStr;
+	tokenize $tokStr[1] "]" $numStr;
+
+	$result=int($numStr[0]) ;
+	return $result;
+	} // end of selectedToID
+
+
+//=======================================================================================
+//getVtxID
+global proc string getVtxID(string $objName) {
+
+ string $ID;
+ if (size($objName) != 0 )
+ {
+ 	$ID = `match "[0-9]+]$" ($objName) `;
+ 	$ID = `substring $ID 1 (size($ID)-1)`;
+ 	return $ID;
+ } else
+ return 0;
+}
+
+
+//=======================================================================================
+//fill textField with getBaseShape
+global proc getBaseShape ()
+{
+	global string $BASEobject;
+	string $s[]=`ls -sl`;
+
+	string $trans[] = `listRelatives -p -fullPath $s[0]`; // get source transform node
+
+	$ok=1;
+	string $attrList[] = {".sx", ".sy", ".sz" };
+	float $attrValue[] = {1.0, 1.0, 1.0 };
+	int $found = 0;
+	for( $aCnt = 0; $aCnt < size( $attrList ); $aCnt++ )
+		if( `getAttr ( $trans[0] + $attrList[$aCnt] )` != $attrValue[$aCnt] )
+			{
+			$found = 1;
+			break;
+			}
+
+	if( $found )
+		{
+			print("Freez Transformation\n");
+			$ok = 0;
+			string $result = `confirmDialog
+					-title "SmartVtxII Freeze Transformation"
+					-message (
+						"Polygon shape " + $s[0] + " has transformations \n"+
+						"applied on Scale, Using SmartVtxII requires freeze\n" +
+						"Scale Transformation.\n\n" )
+				    	-button "Freeze Scale"
+				    	-button "Cancel"
+				    	-defaultButton "Cancel"
+				    	-cancelButton "Cancel"
+				    	-dismissString "Cancel"`;
+
+				if ( $result == "Cancel" )
+					return;
+
+				if( $result == "Freeze Scale" )
+					{
+						makeIdentity -apply 1 -s 1 $s[0];
+						$ok=1;
+
+					}//end freeze transformation
+		}// end if $found
+
+		if ($ok==1) {
+			$BASEobject = $s[0];
+			textFieldButtonGrp -e -tx ($BASEobject) sourceShapeNameStr;
+			if ($BASEobject != "") {
+				button -e -en 1 selectMirrorButton;
+				button -e -en 1 addSelectButton;
+				button -e -en 1 mirrorSymButton;
+				button -e -en 1 swapSymButton;
+				button -e -en 1 resetSelectButton;
+			}//end enable buttons
+		}//end if $ok
+}//end getBaseShape
+
+
+//=======================================================================================
+//asign globalVar when Axis is selected
+global proc axis (int $direction)
+	{
+		global int $directionValueVTX;
+		$directionValueVTX= $direction;
+	}
+
+
+//=======================================================================================
+// smartVtx main prod - UI
+global proc smartVtx ()
+{
+	global int $directionValueVTX;
+	//print ($directionValueVTX);
+	global string $BASEobject;
+	if ((`window -ex smartVtxIIWin`) == true)
+		{
+			deleteUI smartVtxIIWin;
+			windowPref -remove smartVtxIIWin;
+		}
+	window -t "Smart VTX II" -w 280 -h  420 -s 0 smartVtxIIWin;
+
+	columnLayout -adjustableColumn true -columnAttach "both" 5 -rowSpacing 5 -columnWidth 200;
+
+		textFieldButtonGrp -l "Base Obj" -text $BASEobject -bl "select" -ed 0 -cw3 70 150 10 -bc "getBaseShape"  -cal 1 center sourceShapeNameStr;
+
+		rowLayout -numberOfColumns 4 -columnWidth4 80 50 50 50 -cat 1 "both" 8;
+			text -l "Mirror Axis";
+			iconTextRadioCollection;
+				iconTextRadioButton -st "textOnly" -l  "X" -sl -w 30 -h 30 -onCommand "axis 0" axisIconX;
+ 				iconTextRadioButton -st "textOnly" -l  "Y" -w 30 -h 30 -onCommand "axis 1" axisIconY;
+ 				iconTextRadioButton -st "textOnly" -l  "Z" -w 30 -h 30 -onCommand "axis 2" axisIconZ;
+ 		setParent ..;
+
+
+		frameLayout -cll 0 -label "Selection" -labelAlign "center" -borderStyle "etchedOut";
+			columnLayout -adjustableColumn true -columnAttach "both" 10 -rowSpacing 5 -columnWidth 150;
+
+					button
+						-w 110
+						-align "center"
+						-l "Select Mirrored"
+						-c "smartVtxCtrl($directionValueVTX,2)"
+						selectMirrorButton;
+					button
+						-w 110
+						-align "center"
+						-l "Add Mirrored"
+						-c "smartVtxCtrl($directionValueVTX,3)"
+						addSelectButton;
+
+			setParent ..;
+		setParent ..;
+
+	 	frameLayout -cll 0 -label "Trasform" -labelAlign "center" -borderStyle "etchedOut";
+			columnLayout -adjustableColumn true -columnAttach "both" 10 -rowSpacing 5 -columnWidth 150;
+				button
+					-w 100
+					-l "Mirror Selected Vtx"
+					-c "smartVtxCtrl($directionValueVTX,0)"
+				mirrorSymButton;
+
+				button
+					-w 100
+					-l "Swap Symmetric Vtx"
+					-c "smartVtxCtrl($directionValueVTX,1)"
+				swapSymButton;
+
+				button
+					-w 100
+					-l "Reset Selected Vtx"
+					-c "copyPasteVtx(3)"
+				resetSelectButton;
+
+			setParent ..;
+		setParent ..;
+
+		frameLayout -label "Sets" -labelAlign "center" -borderStyle "etchedOut";
+			columnLayout -adjustableColumn true -columnAttach "both" 10 -rowSpacing 5 -columnWidth 150;
+				rowLayout -numberOfColumns 2;
+					button
+						-w 56
+						-l "Copy set"
+						-c "copyPasteVtx(0)"
+					copyVtxButton;
+
+					button
+						-w 56
+						-l "Paste set"
+						-c "copyPasteVtx(1)"
+					pasteVtxButton;
+				setParent ..;
+				button
+					-w 100
+					-l "Select set"
+					-c "copyPasteVtx(2)"
+				selectSetButton;
+			setParent ..;
+		setParent ..;
+
+		symbolButton -h 43 -image "smartVtxII_bar.bmp" -c "smratVtxAboutWin";
+
+	if ($BASEobject=="") {
+		button -e -en 0 selectMirrorButton;
+		button -e -en 0 addSelectButton;
+		button -e -en 0 mirrorSymButton;
+		button -e -en 0 swapSymButton;
+		button -e -en 0 resetSelectButton;
+	}
+	showWindow smartVtxIIWin;
+}
+
+
+//=======================================================================================
+//about window
+global proc smratVtxAboutWin()
+{
+	global float $smartVtxTol;
+	if ((`window -ex smartVtxsmratVtxAboutWin`) == true)
+		{
+			deleteUI smartVtxsmratVtxAboutWin;
+			//windowPref -remove smartVtxsmratVtxAboutWin;
+		}
+	window -t "Options & About.." -w 360 -h 350 -s 0 smartVtxsmratVtxAboutWin;
+
+
+	columnLayout -adjustableColumn true -columnAttach "both" 15 -rowSpacing 5 -columnWidth 200;
+	frameLayout -cll 0 -label "Options" -labelAlign "center" -borderStyle "etchedOut";
+		columnLayout -adjustableColumn true -columnAttach "both" 10 -rowSpacing 5 -columnWidth 150;
+			floatSliderGrp -columnWidth3 70 50 10 -cat 1 "both" 8 -l "Tolerance" -pre 4 -v $smartVtxTol -field true -minValue 0.0001 -maxValue 1 -fieldMinValue 0.0001 -fieldMaxValue 1 -changeCommand "$smartVtxTol=`floatSliderGrp -q -v tolSlider`;" tolSlider;
+		setParent ..;
+	setParent ..;
+	frameLayout -cll 0 -label "About" -labelAlign "center" -borderStyle "etchedOut";
+		columnLayout -adjustableColumn true -columnAttach "both" 10 -rowSpacing 5 -columnWidth 150;
+			text -align "center" -l "smartVtxII.mel";
+			text -align "center" -l "copyright (c) 2002-2004 Firas J.Ershead";
+			text -align "center" -l "";
+			text -align "left" -l "Thanks to my wife for her support during developing";
+			text -align "left" -l "this code, also to my colleges in Media-tech.";
+			text -align "left" -l "Thanks also to Mark Behm, even I couldn't contact him,";
+			text -align "left" -l "for his revision on blendTaper, I used his great ideas";
+			text -align "left" -l "and codes.";
+			text -align "left" -l "";
+			text -align "center" -l "firasershead@hotmail.com";
+			text -align "center" -l "MediaTech, Dubai - UAE";
+		setParent ..;
+	setParent ..;
+
+	showWindow smartVtxsmratVtxAboutWin;
+}
+
+
+//=======================================================================================
+//smartVtxCtrl
+
+global proc smartVtxCtrl(int $directionValue,int $swap)
+{
+	// 0 mirror
+	// 1 swap
+	// 2 select mirror
+	// 3 add mirror selected
+
+	global float $smartVtxTol;
+	global string $newSel[]; clear $newSel; // new mirrored vtx
+	string $selPoints[]; //selected vtx
+
+	$selPoints =`filterExpand -sm 31`;
+
+	string $sourceShapeNameValue = `textFieldButtonGrp -q -tx sourceShapeNameStr`;
+	int $addReplace = $swap;
+	copyShapeSelectProcCstmII($directionValue,$smartVtxTol,$addReplace,$sourceShapeNameValue,$selPoints);
+
+	//print ("newSel\n");
+	//print($newSel);
+	if ($swap == 2) { // select mirroredId
+		select -r $newSel;
+		}
+	if ($swap == 3) { // add select mirroredId
+		//select -r $newSel;
+		select -add $newSel;
+		}
+}
+
+
+global proc copyShapeSelectProcCstmII(int $direction,float $tolerans, int $addReplace,string $sourceShapeName, string $selPoints[])
+{
+		global string $BASEobject;
+		global string $newSel[];
+		int $mirroredID[];
+
+	if (size($selPoints)==0)
+		error "No polygon vertexes are selected !";
+
+	else{
+		window -rtf true prog;
+			columnLayout;
+			string $progressControl = `progressBar -maxValue (size($selPoints)) -width 300`;
+			//progressBar  -width 300 individualProg;
+		showWindow prog;
+
+
+
+		int $sourceNumbers[];
+		// determ object Name
+		string $tokStr[],$numStr[],$objName;
+		tokenize $selPoints[0] "[" $tokStr;
+		tokenize $tokStr[1] "]" $numStr;
+		$objName=$tokStr[0];
+
+	// sorting selected points
+		$sourceNumbers[0]=int($numStr[0]);
+
+		int $i;
+		int $j=1;
+
+		for ($i=1;$i<size($selPoints);$i++){
+			tokenize $selPoints[$i] "[" $tokStr;
+			if ($tokStr[0]==$objName){
+				tokenize $tokStr[1] "]" $numStr;
+				$sourceNumbers[$j]=int($numStr[0]);
+				$j++;
+				};
+			};
+		if ($sourceShapeName=="")
+			error "No Base Shape (polyset) specified !";
+		else {
+			float 	$sourPoint[3],$searchPoint[3],$oldSourPoint[3];
+
+			int $polyPointsNumber=`getAttr -size ($sourceShapeName+".vrts")`;
+
+	//find respective points;
+			int $respectNumber;
+			int $OK;
+			for ($i=0;$i<size($sourceNumbers);$i++){
+
+				$sourPoint=`pointPosition -l ($sourceShapeName+".vtx["+$sourceNumbers[$i]+"]")`;
+				$sourPoint[$direction]= -$sourPoint[$direction];
+
+
+				$respectNumber= xyzToID ($BASEobject,$sourPoint[0],$sourPoint[1],$sourPoint[2],$tolerans);
+
+				if ($respectNumber != -1 ) {
+					$mirroredID[$i]=$respectNumber;
+					$newSel[$i] = $objName+"["+$mirroredID[$i]+"]";
+
+					//print ("ID = "+$sourceNumbers[$i]+"\n");
+					//print ("IID= "+$respectNumber+"\n");
+
+					$sourPoint=`pointPosition -l ($objName+"["+$sourceNumbers[$i]+"]")`;
+					$sourPoint[$direction]= -$sourPoint[$direction];
+
+						if ($addReplace==1){
+							$oldSourPoint=`pointPosition -l ($objName+"["+$respectNumber+"]")`;
+							$oldSourPoint[$direction]=-$oldSourPoint[$direction];
+							};
+						if ($addReplace<=1) xform -os -t ($sourPoint[0]) ($sourPoint[1]) ($sourPoint[2]) ($objName+"["+$respectNumber+"]");
+						if ($addReplace==1)
+							xform -os -t ($oldSourPoint[0]) ($oldSourPoint[1]) ($oldSourPoint[2])
+								($objName+"["+$sourceNumbers[$i]+"]");
+					progressBar -e -step 1 $progressControl;
+
+				};// end of if
+				if ($respectNumber == -1 ) { print ("ID : "+$sourceNumbers[$i]+" has no mirrored Vtx (tolerans="+$tolerans+")\n"); }
+			};// end of for  by i;
+		}; //end of if
+	};//end of if
+	deleteUI prog;
+}
+
+
+//=======================================================================================
+// copyPasteVtx :
+
+global proc copyPasteVtx(int $option)
+{
+	//option = 0 : copy set
+	//option = 1 : paste set
+	//option = 2 : select set
+	//option = 3 : reset set
+
+	global string $copySource;
+	global string $SET[];
+
+	string $selectArray[];
+	$selectedVTX = `ls -sl -fl`;
+
+	selectMode -o;
+	toggleSelMode;
+	SelectToggleMode;
+	$selectedObj = `ls -sl`;
+
+
+	//copy vtx to memory
+	if ( (size ($selectedObj) == 1) && ($option == 0) )
+	{
+		clear $SET;
+		$copySource = $selectedObj[0];
+		$j = 0;
+		for ($vtx in $selectedVTX)
+		{
+			$SET[$j] = selectedVtxToID($vtx);
+			$j++;
+		}
+	}
+
+	//pasteVtx in obj the set of source
+
+	if (($option == 1) && (size($SET)>0) && (size($selectedObj) > 0) )
+	{
+		//if(size(`filterExpand -sm 12 $selectedObj`) == 0) {
+     		//	setToolTo $gSelect;
+     		//	error "No polygon surfaces selected. Select polygon object to use magnet on.";
+   		//}
+		print("\npaste\n");
+		for ($obj in $selectedObj)
+			pasteVtx($obj,$copySource,$SET);
+
+	}
+
+	//select SET in all selected objects
+	if (($option == 2) && (size($SET)>0) && (size($selectedObj) > 0) )
+	{
+		string $selectArray[];
+		for ($i=0;($i<size($SET));$i++)
+		{
+			$selectArray[$i] = ($selectedObj[0]+".vtx["+$SET[$i]+"]");
+		}
+		hilite -r $selectedObj[0];
+		select -r $selectArray;
+	}
+
+	//reset selected vtx in selected objects
+	if (($option == 3) && (size($selectedVTX)>0) && (size($selectedObj) > 0) )
+	{
+		for ($obj in $selectedObj)
+		{
+			string $sID[]; clear $sID;
+			string $sourceShapeNameValue = `textFieldButtonGrp -q -tx sourceShapeNameStr`;
+			for ($i=0; $i< size($selectedVTX);$i++)
+				$sID[$i] = selectedVtxToID($selectedVTX[$i]);
+			pasteVtx($obj,$sourceShapeNameValue,$sID);
+		}
+
+	}
+}
+
+//=======================================================================================
+// paste $SET IDs in $copySource to $obj
+global proc pasteVtx(string $obj,string $copySource, string $SET[])
+{
+	for ($id=0; $id < size($SET); $id++)
+	{
+		$vtxPosition = `xform -q -t -os  ($copySource+".vtx["+$SET[$id]+"]")`;
+		xform -os -t $vtxPosition[0] $vtxPosition[1] $vtxPosition[2] ($obj+".vtx["+$SET[$id]+"]");
+	}
+}
+
+
+//=======================================================================================
+//fill textField with fillBASEobjectPaint
+global proc fillBASEobjectPaint ()
+{
+	global string $BASEobjectPaint;
+	global string $PaintObj;
+	string $s[]=`ls -sl`;
+
+	if (size($s)==1) {
+		$BASEobjectPaint = $s[0];
+		selectMode -o;
+		toggleSelMode;
+		SelectToggleMode;
+		select -clear;
+	}
+
+	textFieldButtonGrp -e -tx ($BASEobjectPaint) sourceShapePaintNameStr;
+
+	if ($BASEobjectPaint != "") {
+		iconTextCheckBox -e -en 1 startVtxPaintButton;
+		}
+}
+
+//=======================================================================================
+//smartVtxPaintUI
+global proc smartVtxPaintUI ()
+{
+	global string $BASEobjectPaint;
+	global string $BASEobjectWrap;
+	global int $stampVtxActive;
+	global int $pressure;
+	if ((`window -ex smartVtxPaintUIWin`) == true)
+		{
+			deleteUI smartVtxPaintUIWin;
+			windowPref -remove smartVtxPaintUIWin;
+		}
+
+	scriptJob -cu 1 -e "SelectionChanged" "stampVtx();" -permanent;
+
+	window -t "Smart VTX Paint v.0" -w 300 -h  300 -s 0 smartVtxPaintUIWin;
+
+	columnLayout -adjustableColumn true -columnAttach "both" 5 -rowSpacing 5 -columnWidth 200;
+
+
+		textFieldButtonGrp -l "Clone Obj" -text $BASEobjectPaint -bl " select " -ed 0 -cw3 70 150 20 -bc "fillBASEobjectPaint"  -cal 1 center sourceShapePaintNameStr;
+		intSliderGrp -label "Pressure" -field 1 -cw3 70 50 80 -cal 1 center -cc "$pressure=`intSliderGrp -q -v pressureSlider`;" pressureSlider;
+
+ 		iconTextCheckBox  -w 100 -style "iconAndTextVertical" -image1 "USERSELECTPAINT.BMP" -bgc .75 .75 .75 -label "Start Clone"
+ 			-onCommand "$stampVtxActive=1; startVtxPaintButton(1);"
+ 			-offCommand "$stampVtxActive=0; startVtxPaintButton(0);"
+ 		startVtxPaintButton;
+
+		//shrink wrap
+		textFieldButtonGrp -l "wrap Obj" -text $BASEobjectWrap -bl " select " -ed 0 -cw3 70 150 20 -bc "fillBASEobjectPaint"  -cal 1 center sourceShapeWrapNameStr;
+		intSliderGrp -label "Pressure" -field 1 -cw3 70 50 80 -cal 1 center -cc "$pressureWrap=`intSliderGrp -q -v pressureWrapSlider`;" pressureWrapSlider;
+		/*
+		iconTextCheckBox  -w 100 -style "iconAndTextVertical" -image1 "USERSELECTPAINT.BMP" -bgc .75 .75 .75 -label "Start Wrap"
+ 			-onCommand "$stampVtxActive=1; startVtxPaintButton(1);"
+ 			-offCommand "$stampVtxActive=0; startVtxPaintButton(0);"
+ 		startVtxPaintWrapButton;
+		*/
+	setParent ..;
+
+	if ($BASEobjectPaint=="") { $stampVtxActive=0; iconTextCheckBox -e -en 0 startVtxPaintButton;}
+
+
+
+	showWindow smartVtxPaintUIWin;
+}
+
+
+//=======================================================================================
+//startVtxPaint
+global proc startVtxPaintButton(int $option)
+{
+	global string $PaintObj;
+	global int $stampVtxActive;
+	global int $pressure;
+	global string $BASEobjectPaint;
+
+	print ("startVtxPaintButton :"+$option+"\n");
+	if ($option==0) {
+		$stampVtxActive = 0;
+
+		setToolTo `manipMoveContext`;
+		selectMode -o;
+		toggleSelMode;
+		SelectToggleMode;
+
+		if (`iconTextCheckBox -exists startVtxPaintButton`) iconTextCheckBox -e -v 0 -bgc .75 .75 .75 startVtxPaintButton;
+		print("startVtxPaint is Off\n");
+	}
+	if ($option==1) {
+		iconTextCheckBox -e -v 1 -bgc .80 .75 .75 startVtxPaintButton;
+		//$BASEobjectPaint = `textFieldButtonGrp -q -text sourceShapePaintNameStr`;
+		$pressure = `intSliderGrp -q -v pressureSlider`;
+		ArtPaintSelectTool;
+		scriptJob -runOnce true -e "ToolChanged" "stampVtxOff()" -permanent;
+		//print("start paint\n");
+	}
+}
+
+global proc stampVtxOff()
+{
+	global int $stampVtxActive;
+	global string $PaintObj;
+	print("stampVtxOff\n");
+
+	setToolTo `manipMoveContext`;
+	selectMode -o;
+	toggleSelMode;
+	SelectToggleMode;
+
+	if ($stampVtxActive==1) {
+		$stampVtxActive=0;
+		iconTextCheckBox -e -v 0 -bgc .75 .75 .75 startVtxPaintButton;
+		hilite -u $PaintObj;
+		select -r $PaintObj;
+	}
+}
+
+global proc stampVtx()
+{
+	global int $stampVtxActive;
+	global int $pressure;
+	float $p[],$o[],$d[];
+	global string $BASEobjectPaint;
+	float $pre;
+
+
+	if (`textFieldButtonGrp -ex sourceShapePaintNameStr`==1)  {
+		if (`iconTextCheckBox -q -v startVtxPaintButton`==1) {$stampVtxActive=1;} else {$stampVtxActive=0;}
+		$BASEobjectPaint = `textFieldButtonGrp -q -text sourceShapePaintNameStr`;
+	}
+
+
+	print ("stampVtx\n");
+	//print ("$stampVtxActive:"+$stampVtxActive+"\n");
+
+	if ($stampVtxActive==1) {
+		$pressure = `intSliderGrp -q -v pressureSlider`;
+		$pre = ($pressure*0.01);
+		if ($BASEobjectPaint=="") {$BASEobjectPaint = `textFieldButtonGrp -q -tx sourceShapePaintNameStr`;}
+
+		string $bObj = $BASEobjectPaint;
+		//print ("**** pressure :"+$pre+"\n");
+		//print ("**** baseObj:"+$bObj+"\n");
+
+		string $selectedVTX[];
+ 		$selectedVTX = `ls -sl -fl`;
+ 		//print $selectedVTX;
+ 		if(size(`filterExpand -sm 31 $selectedVTX`) > 0) {
+ 			print ("selectedVTX\n");
+ 			print $selectedVTX;
+ 			print ("**** pressure :"+$pre+"\n");
+			print ("**** baseObj:"+$bObj+"\n");
+ 			for ($vtx in $selectedVTX) {
+ 				$id = selectedVtxToID($vtx);
+ 				$p = (`pointPosition -l ($bObj+".vtx["+$id+"]")`); //masterObj vtx position
+ 				$o = (`pointPosition -l $vtx`);
+ 				$d = {($p[0]-$o[0]),($p[1]-$o[1]),($p[2]-$o[2])};
+ 				$p = {($o[0] + $d[0]*$pre),($o[1] + $d[1]*$pre),($o[2] + $d[2]*$pre)};
+ 				xform -os -t $p[0] $p[1] $p[2] $vtx;
+ 			}
+ 		}
+ 	}
+}
+
+smartVtx;
