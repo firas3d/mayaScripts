@@ -1,0 +1,139 @@
+global proc float pow2(float $x)
+{
+	return $x*$x;
+}
+
+global proc float pow3(float $x)
+{
+	return $x*$x*$x;
+}
+
+
+global proc float bezierEase(float $powerOut,float $powerIn, float $t)
+{
+	vector $A = <<0,0,0>>;
+	vector $B = <<$powerOut,0,0>>;
+	vector $C = <<1-$powerIn,1,0>>;
+	vector $D = <<1,1,0>>;
+
+	$OUTx = (pow3(1-$t))*$A.x+3*(pow2(1-$t))*$t*$B.x+3*(1-$t)*(pow2($t))*$C.x+(pow3($t))*$D.x;
+	return $OUTx;
+}
+
+
+global proc blendObjectsAttr(string $sel[],int $ease,int $opacity)
+// ease >>		1: linear	2:	easeOut		3:	easeIn		4:	easeInOut
+{
+	$selectedChannelBoxAttr = `channelBox -q  -selectedMainAttributes mainChannelBox`;
+
+	$size = size($sel);
+	$i = 1;
+	float $opa=$opacity/100;
+	for ($i=1;$i<($size-1);$i++)
+		for ($att in $selectedChannelBoxAttr)
+		{
+			float $minAttr = `getAttr ($sel[0]+"."+$att)`;
+			float $maxAttr = `getAttr ($sel[$size-1]+"."+$att)`;
+			$delta = $maxAttr-$minAttr;
+
+			if ($ease == 1) $factor = `linstep 0 ($size-1) ($i)`;
+			if ($ease == 2) $factor = bezierEase(1,0,`linstep 0 ($size-1) ($i)`); //ease out
+			if ($ease == 3) $factor = bezierEase(0,1,`linstep 0 ($size-1) ($i)`); //ease in
+			if ($ease == 4) $factor = `smoothstep 0 ($size-1) ($i)`;
+
+			$currentValue = `getAttr ($sel[$i]+"."+$att)`;
+			$blendValue = $minAttr + $delta*$factor;
+			float $newValue = ($currentValue*(100-$opacity) + ($blendValue*$opacity) )/100;
+
+			setAttr ($sel[$i]+"."+$att) $newValue;
+		}
+}
+
+global proc string[] sortArray(string $sel[],int $axis)
+//axis	X:0	Y:1	Z:2
+{
+	float $unSortFloat[];
+	float $sortedFloat[];
+	string $sortedObjects[];
+	float $pivot[];
+	$size = size($sel);
+
+	$i=0;
+	for ($obj in $sel)
+	{
+		$pivot = `xform -q -ws -rp $obj`;
+		$unSortFloat[$i] = $pivot[$axis];
+		$i++;
+	}
+
+	$sortedFloat =  sort($unSortFloat);
+
+	//sort sel[] based on $sortedFloat[]
+	$i=0;
+	for ($sortedIndex=0; $sortedIndex<$size; $sortedIndex++)
+		for ($unSortedIndex=0; $unSortedIndex<$size; $unSortedIndex++)
+			if ($sortedFloat[$sortedIndex] == $unSortFloat[$unSortedIndex])
+			{
+				$sortedObjects[$i] = $sel[$unSortedIndex];
+				$i++;
+            }
+
+	return $sortedObjects;
+}
+
+global proc blendObjAttrOption(int $ease)
+{
+	int $opt;
+	if ((`iconTextRadioButton -q -sl OrderRadioButton`) == 1) $axis = -1;
+	if ((`iconTextRadioButton -q -sl XAxisRadioButton`) == 1) $axis = 0;
+	if ((`iconTextRadioButton -q -sl YAxisRadioButton`) == 1) $axis = 1;
+	if ((`iconTextRadioButton -q -sl ZAxisRadioButton`) == 1) $axis = 2;
+
+	$opacity = `intSliderGrp -q -v blendAttrOpacitySlider`;
+	$sel = `ls -sl`;
+
+	if ($axis == -1)
+		blendObjectsAttr($sel,$ease,$opacity);
+	else
+		blendObjectsAttr( sortArray($sel,$axis) ,$ease,$opacity);
+}
+
+global proc blendObjAttrUI()
+{
+	string $blendObjAttrUIVer="1.0";
+	float $c1[] = {1.0, 1.0, 0.9};
+ 	float $c2[] = {1.0, 0.8, 1.0};
+	float $c3[] = {0.8, 1.0, 0.8};
+
+
+	if ((`window -ex blendObjAttrUIWin`) == true) {
+		deleteUI blendObjAttrUIWin;
+		windowPref -remove blendObjAttrUIWin;
+	}
+ 	window  -toolbox 1 -t ("blendObjAttr ver "+$blendObjAttrUIVer+" (Basic)") -w 304 -h 200 -s 0 blendObjAttrUIWin;
+
+	columnLayout -columnAttach "both" 10  -adjustableColumn 1 -columnAlign "center" -rowSpacing 5;
+	iconTextButton -style "iconAndTextCentered"  -h 15  -align "center" -l "Blend Objects Attr";// -fn "smallPlainLabelFont";
+	separator;
+	rowLayout -numberOfColumns 4 -columnWidth4 200 25 25 25 ;
+	iconTextRadioCollection blendObjAttrRadio;
+		iconTextRadioButton -bgc .9 .9 .9 -sl -w 200 -h 25 -st "textOnly" -l "Selection Order" OrderRadioButton;
+		iconTextRadioButton  -w 25 -h 25 -st  "textOnly" -l "X" XAxisRadioButton;
+		iconTextRadioButton  -w 25 -h 25 -st "textOnly" -l "Y" YAxisRadioButton;
+		iconTextRadioButton  -w 25 -h 25 -st  "textOnly" -l "Z" ZAxisRadioButton;
+	setParent..;
+ 	separator;
+	rowLayout -numberOfColumns 4 -columnWidth4 72 72 72 72 -columnAlign4 "center" "center" "center" "center" ;
+		button -w 60 -h 30 -l "Linear" -c ("blendObjAttrOption(1)");
+		button  -w 60 -h 30 -l "Ease-Out" -c ("blendObjAttrOption(2)") ;
+		button  -w 60 -h 30 -l "Ease-In" -c ("blendObjAttrOption(3)")  ;
+		button -w 60 -h 30 -l "Ease-Ease" -c ("blendObjAttrOption(4)");
+	setParent..;
+	separator;
+	intSliderGrp -s 10 -adjustableColumn 3 -columnWidth3 50 30 300 -l "Opacity" -field 1  -minValue 0 -maxValue 100 -value 100 blendAttrOpacitySlider;
+	separator;
+	iconTextButton -style "iconAndTextCentered"  -h 15 -bgc .6 .6 .6 -align "center" -l "www.firas3d.com";// -fn "smallPlainLabelFont";
+
+	showWindow blendObjAttrUIWin;
+}
+blendObjAttrUI;
