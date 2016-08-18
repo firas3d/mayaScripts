@@ -1,0 +1,238 @@
+
+global proc blendObjectsAttr(string $sel[],int $ease,int $opacity)
+// ease >>		1: linear	2:	easeOut		3:	easeIn		4:	easeInOut
+{
+	global string $remapBlendValueNode;
+
+    $size = size($sel);
+    $selectedChannelBoxAttr = `channelBox -q  -selectedMainAttributes mainChannelBox`;
+
+	if (($size==0)||(`size($selectedChannelBoxAttr)`==0)) {
+    	confirmDialog -title "blendAttr speaking"
+        -message "Man, select few objects & attributes from channel box!"
+        -button "Ok";}
+
+
+	float $opa=$opacity/100;
+
+    for ($i=1;$i<($size-1);$i++){
+		for ($att in $selectedChannelBoxAttr)
+		{
+			float $minAttr = `getAttr ($sel[0]+"."+$att)`;
+			float $maxAttr = `getAttr ($sel[$size-1]+"."+$att)`;
+
+            setAttr ($remapBlendValueNode+".inputMin") 0;
+            setAttr ($remapBlendValueNode+".inputMax") ($size-1);
+            setAttr ($remapBlendValueNode+".outputMin") $minAttr;
+            setAttr ($remapBlendValueNode+".outputMax") $maxAttr;
+
+            setAttr ($remapBlendValueNode+".inputValue") $i;
+
+            $newValue = `getAttr ($remapBlendValueNode+".outValue")`;
+
+			setAttr ($sel[$i]+"."+$att) $newValue;
+		}
+    }
+
+    //set start and end
+
+
+		for ($att in $selectedChannelBoxAttr)
+		{
+			float $minAttr = `getAttr ($sel[0]+"."+$att)`;
+			float $maxAttr = `getAttr ($sel[$size-1]+"."+$att)`;
+
+            setAttr ($remapBlendValueNode+".inputMin") 0;
+            setAttr ($remapBlendValueNode+".inputMax") ($size-1);
+            setAttr ($remapBlendValueNode+".outputMin") $minAttr;
+            setAttr ($remapBlendValueNode+".outputMax") $maxAttr;
+
+			$i=$size-1;
+            setAttr ($remapBlendValueNode+".inputValue") $i;
+            $newValue = `getAttr ($remapBlendValueNode+".outValue")`;
+			setAttr ($sel[$i]+"."+$att) $newValue;
+
+            $i=0;
+            setAttr ($remapBlendValueNode+".inputValue") $i;
+            $newValue = `getAttr ($remapBlendValueNode+".outValue")`;
+			setAttr ($sel[$i]+"."+$att) $newValue;
+		}
+
+}
+
+global proc string[] sortArray(string $sel[],int $axis)
+//axis	X:0	Y:1	Z:2
+{
+	float $unSortFloat[];
+	float $sortedFloat[];
+	string $sortedObjects[];
+	float $pivot[];
+	$size = size($sel);
+
+	$i=0;
+	for ($obj in $sel)
+	{
+		$pivot = `xform -q -ws -rp $obj`;
+		$unSortFloat[$i] = $pivot[$axis];
+		$i++;
+	}
+
+	$sortedFloat =  sort($unSortFloat);
+
+	//sort sel[] based on $sortedFloat[]
+	$i=0;
+	for ($sortedIndex=0; $sortedIndex<$size; $sortedIndex++)
+		for ($unSortedIndex=0; $unSortedIndex<$size; $unSortedIndex++)
+			if ($sortedFloat[$sortedIndex] == $unSortFloat[$unSortedIndex])
+			{
+				$sortedObjects[$i] = $sel[$unSortedIndex];
+				$i++;
+            }
+
+	return $sortedObjects;
+}
+
+global proc blendObjAttrOption(int $ease,float $preOpacity)
+{
+	int $opt;
+	if ((`iconTextRadioButton -q -sl OrderRadioButton`) == 1) $axis = -1;
+	if ((`iconTextRadioButton -q -sl XAxisRadioButton`) == 1) $axis = 0;
+	if ((`iconTextRadioButton -q -sl YAxisRadioButton`) == 1) $axis = 1;
+	if ((`iconTextRadioButton -q -sl ZAxisRadioButton`) == 1) $axis = 2;
+
+	$opacity = `intSliderGrp -q -v blendAttrOpacitySlider`;
+	$sel = `ls -sl`;
+
+	if ($axis == -1)
+		blendObjectsAttr($sel,$ease,$opacity*$preOpacity);
+	else
+		blendObjectsAttr( sortArray($sel,$axis) ,$ease,$opacity*$preOpacity);
+}
+
+global proc blendObjAttrPresets(int $style)
+{
+	global string $remapBlendValueNode;
+	global string $blendAttrGradientControl;
+
+	$sel = `ls -sl`;
+    //delete node and refresh ui
+    select $remapBlendValueNode;
+    startAttrPreset( "remapValue" );
+    blendAttr "inputValue" 0;
+    blendAttr "inputMin" 0;
+    blendAttr "inputMax" 1;
+    blendAttr "outputMin" 0;
+    blendAttr "outputMax" 1;
+    blendAttr "value[0].value_Position" 0;
+    blendAttr "value[0].value_FloatValue" 0;
+    blendAttr "value[0].value_Interp" 1;
+    blendAttr "value[4].value_Position" 1;
+    blendAttr "value[4].value_FloatValue" 1;
+    blendAttr "value[4].value_Interp" 0;
+    endAttrPreset();
+	//blendObjAttrUI;
+	select $sel;
+
+    //cases
+    if ($style == 1)  {//ease in
+        setAttr "ramapValueNode.value[1].value_Position" 0.66;
+        setAttr "ramapValueNode.value[1].value_FloatValue" 0.85;
+        setAttr "ramapValueNode.value[1].value_Interp" 3;
+
+        setAttr "ramapValueNode.value[2].value_Position" 0.333;
+        setAttr "ramapValueNode.value[2].value_FloatValue" 0.5;
+        setAttr "ramapValueNode.value[2].value_Interp" 3;
+
+        //setAttr "ramapValueNode.value[3].value_Position" 1;
+		//setAttr "ramapValueNode.value[3].value_FloatValue" 1;
+    }
+    if ($style == 2)  {//ease out
+        setAttr "ramapValueNode.value[1].value_Position" 0.66;
+        setAttr "ramapValueNode.value[1].value_FloatValue" 0.4;
+        setAttr "ramapValueNode.value[1].value_Interp" 3;
+
+        setAttr "ramapValueNode.value[2].value_Position" 0.333;
+        setAttr "ramapValueNode.value[2].value_FloatValue" 0.1;
+        setAttr "ramapValueNode.value[2].value_Interp" 3;
+
+        //setAttr "ramapValueNode.value[3].value_Position" 1;
+		//setAttr "ramapValueNode.value[3].value_FloatValue" 1;
+    }
+    if ($style == 3)  {//easeEase
+        setAttr "ramapValueNode.value[1].value_Position" 0.25;
+        setAttr "ramapValueNode.value[1].value_FloatValue" 0.15;
+        setAttr "ramapValueNode.value[1].value_Interp" 3;
+
+        setAttr "ramapValueNode.value[2].value_Position" 0.5;
+        setAttr "ramapValueNode.value[2].value_FloatValue" 0.5;
+        setAttr "ramapValueNode.value[2].value_Interp" 3;
+
+        setAttr "ramapValueNode.value[3].value_Position" 0.75;
+        setAttr "ramapValueNode.value[3].value_FloatValue" 0.85;
+        setAttr "ramapValueNode.value[3].value_Interp" 3;
+
+        setAttr "ramapValueNode.value[4].value_Position" 1;
+		setAttr "ramapValueNode.value[4].value_FloatValue" 1;
+    }
+
+}
+global proc blendAttrUI()
+{
+	string $blendObjAttrUIVer="3.0";
+    global string $remapBlendValueNode;
+    global string $blendAttrGradientControl;
+
+    float $c1[] = {1.0, 1.0, 0.9};
+ 	float $c2[] = {1.0, 0.8, 1.0};
+	float $c3[] = {0.8, 1.0, 0.8};
+
+
+	if ((`window -ex blendObjAttrUIWin`) == true) {
+		deleteUI blendObjAttrUIWin;
+		windowPref -remove blendObjAttrUIWin;
+	}
+ 	window  -toolbox 1 -t ("blendAttr ver "+$blendObjAttrUIVer) -w 304 -h 148 -s 0  blendObjAttrUIWin;
+
+	columnLayout -columnAttach "both" 8  -adjustableColumn 1 -columnAlign "center" -rowSpacing 4;
+	separator -style "none";
+	frameLayout -label "Order based on :" -borderStyle "out" -marginHeight 5;
+	rowLayout -numberOfColumns 4 -columnWidth4 72 72 72 72 -columnAlign4 "center" "center" "center" "center";
+	iconTextRadioCollection blendObjAttrRadio;
+		iconTextRadioButton -sl -w 60 -h 25 -st "textOnly" -l "Selection" OrderRadioButton;
+		iconTextRadioButton  -w 60 -h 25 -st  "textOnly" -l "X-axis" XAxisRadioButton;
+		iconTextRadioButton  -w 60 -h 25 -st "textOnly" -l "Y-axis" YAxisRadioButton;
+		iconTextRadioButton  -w 60 -h 25 -st  "textOnly" -l "Z-axis" ZAxisRadioButton;
+	setParent..;
+	setParent..;
+
+    if (!(`objExists $remapBlendValueNode`))
+     $remapBlendValueNode = `createNode -n "ramapValueNode" remapValue`;
+    $blendAttrGradientControl = `gradientControl -h 90 -at ($remapBlendValueNode+".value")`;
+
+    popupMenu -parent $blendAttrGradientControl;
+	    menuItem -label "linear" -c ("blendObjAttrPresets(0)");
+        menuItem -label "easeIn" -c ("blendObjAttrPresets(1)");
+        menuItem -label "easeOut" -c ("blendObjAttrPresets(2)");
+        menuItem -label "easeEase" -c ("blendObjAttrPresets(3)");
+        menuItem -label "____________" -enable 0;
+        menuItem -label "flip V" -c ("") -enable 0;
+        menuItem -label "flip H" -c ("") -enable 0;
+        menuItem -label "____________" -enable 0;
+        menuItem -label "curve control" -c ("editRampAttribute ramapValueNode.value");
+        menuItem -label "select node" -c ("select $remapBlendValueNode");
+separator;
+ 	//separator;
+	//rowLayout -numberOfColumns 2 -columnWidth2 40 230 -columnAlign2 "center" "center";
+     //   $liveCheckBox = `iconTextCheckBox  -style "textOnly" -w 40 -h 30 -l "live" -bgc .7 .3 .3  -enableBackground false
+     //   	-onCommand ("$blendAttrLive=1; iconTextCheckBox -e -enableBackground true $liveCheckBox")
+     //       -offCommand ("$blendAttrLive=0; iconTextCheckBox -e -enableBackground false $liveCheckBox")` ;
+		button -w 240 -h 30 -l "Blend attribures" -c ("blendObjAttrOption(1,1.0)");
+
+	//setParent..;
+	separator;
+	intSliderGrp -vis 0 -s 10 -adjustableColumn 3 -columnWidth3 50 30 200 -l "Opacity" -field 1  -minValue 0 -maxValue 100 -value 100 blendAttrOpacitySlider;
+	//separator;
+	iconTextButton -style "iconAndTextCentered"  -h 15 -align "center" -l "www.firas3d.com";
+	showWindow blendObjAttrUIWin;
+}
+blendAttrUI;
