@@ -1,0 +1,148 @@
+global proc smartCurveOptimizer_About()
+{
+ 	global string $smartCurveOptimizerVer;
+	if ((`window -ex smartCurveOptimizer_AboutWin`) == true)
+		{
+			deleteUI smartCurveOptimizer_AboutWin;
+			windowPref -remove smartCurveOptimizer_AboutWin;
+		}
+	window -t "About.." -w 320 -h 290 -s 0 smartCurveOptimizer_AboutWin;
+	columnLayout -adjustableColumn true -columnAttach "both" 15 -rowSpacing 5 -columnWidth 200;
+	frameLayout -cll 0 -l "" -labelAlign "center" -borderStyle "etchedOut";
+		columnLayout -adjustableColumn true -columnAttach "both" 10 -rowSpacing 5 -columnWidth 150;
+			text -align "center" -fn "boldLabelFont" -l ("smartCurveOptimizer.mel ver."+$smartCurveOptimizerVer);
+			text -align "center" -l "";
+			text -align "center" -l "This mel should give a way to optimize curves.";
+			text -align "center" -l "It is using tolerance to delete CVs.";
+			text -align "center" -l "Assign curve(s) and a tolerance.";
+            text -align "center" -l "";
+			text -align "center" -l "Tip : Select two cvs at the begining";
+            text -align "center" -l "to find tolerance. Enjoy :)";
+
+            separator;
+			text -align "center" -l "firasershead@hotmail.com";
+			text -align "center" -l "www.firas3d.com";
+		setParent ..;
+	setParent ..;
+	showWindow smartCurveOptimizer_AboutWin;
+}
+
+proc updateResultsInfo(int $curveID)
+{
+	global string $curvesToOptimize[];
+    global int $originalCount[];
+    global int $curvesToOptimizeID[];
+    global int $currentID;
+
+    text -e -l $curvesToOptimize[$curveID] curveName;
+    text -e -l $originalCount[$curveID] originCount;
+    text -e -l "" underTolCount;
+    text -e -l "" resultCount;
+    text -e -l (($curveID+1)+"/"+size($curvesToOptimize)) indexTxt;
+}
+
+proc preNext(int $dir)
+{
+	global int $curvesToOptimizeID[];
+    global string $curvesToOptimize[];
+    global int $currentID;
+
+    $size = size($curvesToOptimize);
+    if (($dir == 0) && ($currentID>0)) {$currentID --; updateResultsInfo($currentID);}
+    if (($dir == 1) && ($currentID<($size-1))) {$currentID ++; updateResultsInfo($currentID);}
+}
+
+global proc getCurves()
+{
+	global string $curvesToOptimize[];
+    global int $originalCount[];
+ 	global int $currentID;
+
+    $sel = `ls -sl`;
+
+	clear $curvesToOptimize;
+    clear $originalCount;
+
+    $index = 0;
+    string $line = "";
+    for ($obj in $sel)
+    {
+    	$selShape = `listRelatives -c -s $obj`;
+        if ( (`objectType $selShape[0]`) == "nurbsCurve" )
+        	{
+                $curvesToOptimize[$index] = $obj;
+                $originalCount[$index] = `getAttr ($obj+".degree")`+`getAttr ($obj+".spans")`;
+                $line = $line +" "+$curvesToOptimize[$index];
+                $index++;
+            }
+    }
+
+    $currentID=0;
+    updateResultsInfo($currentID);
+	textFieldButtonGrp -e -text $line  assignCurvesBtn;
+}
+
+global proc smartCurveOptimizer ()
+{
+	global string $curvesToOptimize[];
+    global int $originalCount[];
+ 	global int $currentID;
+
+    global float  $smartCurveOptT = 0.1;
+ 	global string $smartCurveOptimizerVer = "2.0";
+ 	float $c1[] = {1.0, 1.0, 0.9};
+ 	float $c2[] = {1.0, 0.8, 1.0};
+
+	string $line = "";
+    for ($cc in $curvesToOptimize)
+    	$line = ($line + " " + $cc);
+
+    if ((`window -ex smartCurveOptimizerWin`) == true) {
+		deleteUI smartCurveOptimizerWin;
+   	windowPref -remove smartCurveOptimizerWin;
+	}
+ 	window	-t ("smartCurveOptimizer ver "+$smartCurveOptimizerVer)
+			-w 280 -h  362 -s 0 smartCurveOptimizerWin;
+
+    columnLayout -adjustableColumn true -columnAttach "both" 5 -rowSpacing 5 -columnWidth 200;
+   	button -w 110 -align "center" -bgc $c2[0] $c2[1] $c2[2] -l "About.." -c "smartCurveOptimizer_About;" aboutBtn;
+
+    	frameLayout -cll 0 -label "Assign Curve(s) to optimize" -labelAlign "center" -borderStyle "etchedOut";
+  			columnLayout -adjustableColumn true -columnAttach "both" 5 -rowSpacing 5 -columnWidth 170;
+	    		textFieldButtonGrp -l "" -text $line -bl "<<" -ed 0 -cw3 5 205 10 -bc "getCurves;"  -cal 1 center assignCurvesBtn;
+				separator;
+    			floatSliderGrp -label "Tol." -en 1 -cw 1 32 -cw3 35 50 50 -field true -minValue .001 -maxValue 5 -fieldMinValue .001 -fieldMaxValue 10 -value ($smartCurveOptT) -pre 4 toleranceSlider;
+                separator;
+                radioButtonGrp -numberOfRadioButtons 2 -sl 1 -cw3 50 90 100 -label "" -labelArray2 "Simplify" "Detailed" methodRadio;
+	     setParent ..;
+        setParent ..;
+
+    frameLayout -cll 0 -label "Details & Results" -labelAlign "center" -borderStyle "etchedOut";
+  			rowColumnLayout  -ro 1 "both" 5 -ro 2 "both" 5  -cat 1 "both" 5 -cat 2 "both" 5 -numberOfColumns 3  -columnWidth 1 90  -columnWidth 2 80 -columnWidth 3 90;
+
+                text -align "left" -l "Curve :"; text -l "";
+                text -align "center" -l "n/a" curveName;
+
+                text -align "left" -l "Original count :"; text -l "";
+                text -align "center" -l "n/a" originCount;
+
+                text -align "left" -l "Delete CVs :"; text -l "";
+                text -align "center" -l "n/a" underTolCount;
+
+                text -align "left" -l "Result count :"; text -l "";
+                text -align "center" -l "n/a" resultCount;
+
+            	button -w 25  -align "left"  -l "<<" -c "preNext(0);" prevBtn;
+                button -w 25  -align "right" -l ">>" -c "preNext(1);" nextBtn;
+                text - align "center" -l "0/1" indexTxt;
+
+                setParent ..;
+    		setParent ..;
+	setParent ..;
+
+    button -w 110 -align "center" -bgc $c1[0] $c1[1] $c1[2] -l "Optimize/Update" -c ";" optimizeBtn;
+
+    updateResultsInfo($currentID);
+    showWindow smartCurveOptimizerWin;
+}
+smartCurveOptimizer;

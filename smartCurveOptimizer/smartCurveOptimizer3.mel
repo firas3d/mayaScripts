@@ -1,0 +1,105 @@
+global proc float cvDistance (string $curve, int $id1, int $id2)
+{
+	vector $p1 = `xform -q -ws -t ($curve+".cv["+$id1+"]")`;
+    vector $p2 = `xform -q -ws -t ($curve+".cv["+$id2+"]")`;
+
+	$dis = sqrt ( ((($p2.x)-($p1.x))*(($p2.x)-($p1.x))) +
+    			((($p2.y)-($p1.y))*(($p2.y)-($p1.y))) +
+                ((($p2.z)-($p1.z))*(($p2.z)-($p1.z)))  );
+	return $dis;
+}
+
+
+global proc smartCurveOptimizer(int $options) //options=0 :select CVs  options=1 : delete CVs
+{
+    $sel = `ls -sl`;
+    $selShape = `listRelatives -c -s $sel`;
+    $tolerance = 1;
+    if ( (`objectType $selShape[0]`) == "nurbsCurve" )
+        {
+             int $amount = 0;
+
+		     $progWin = `progressWindow
+                 -title "smartCurveOptimizer"
+                 -progress $amount
+                 -status "searching: 0%"
+                 -isInterruptable true`;
+
+
+            $curve = $sel[0];
+            int $curveSize= `getAttr ($curve+".degree")`+`getAttr ($curve+".spans")`;
+
+            int $toDelete[];
+
+            $delIndex = 0;
+            $currentCV = 0;
+            $next = 1;
+            $currentSearch = $currentCV+$next;
+
+            //main loop
+            while ($currentCV < ($curveSize-1)) {
+            {
+                $inSearch = 1; //true
+                $inGroup = 0; //false, to detect groups of cvs
+
+                while (($inSearch==1)) {
+                    $dis = cvDistance($curve,$currentCV,$currentSearch);
+
+                	// Check if the dialog has been cancelled
+         			if ( `progressWindow -query -isCancelled $progWin` ) break;
+			        // Check if end condition has been reached
+         			if ( `progressWindow -query -progress $progWin` >= 100 ) break;
+
+			        $amount = (($currentCV*100 / $curveSize));
+         			//print ($curveSize +"\n");
+                    //print ($currentCV+"\n");
+                    progressWindow -edit
+                         -progress $amount
+                         -status ("searching: "+$amount+"%")
+                         $progWin;
+
+                    if (($dis <= $tolerance) )
+                        {
+                            $toDelete[$delIndex] = $currentSearch;
+                            $delIndex++;
+                            $next ++;
+                            $currentSearch = $currentCV+$next;
+                            $inGroup = 1; //true
+                        }
+                    if (($dis > $tolerance) )
+                        {
+                        	if ($inGroup == 1) {$inGroup = 0; $delIndex--;}
+                            $currentCV = $currentSearch;
+                            $next = 1;
+                            $inSearch = 0; //false
+                            $currentSearch = $currentCV+$next;
+                        }
+                    if ($next>50)
+                    	{
+                    		print("over 50");
+                    		if ($inGroup == 1) {$inGroup = 0; $delIndex--;}
+                            $currentCV = $currentSearch;
+                           	$next = 1;
+                           	$inSearch = 0; //false
+                           	$currentSearch = $currentCV+$next;
+                    	}
+                }
+            }
+         }
+
+        //delete cvs
+         select -d;
+         for ($id=0;$id<(size($toDelete)-1);$id++)
+            select -add ($curve+".cv["+$toDelete[$id]+"]");
+         if ($options==1) {delete; select -d $curve; }
+
+		progressWindow -endProgress;
+         //statistics
+         print ("smartCurveOptimizer\n");
+         print ("original CVs = "+$curveSize+"\n");
+         print ("under Tolerance CVs = "+`size($toDelete)`+"\n");
+         print ("result CV = "+($curveSize-`size($toDelete)`)+"\n");
+     }
+
+}
+smartCurveOptimizer(0);

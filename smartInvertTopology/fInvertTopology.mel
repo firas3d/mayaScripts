@@ -1,0 +1,132 @@
+//InvertTopology
+//tested on Maya 7
+
+//run:
+//fInvertTopology;
+
+global proc fInvertTopology()
+{
+string $fStartObj[] = `ls -sl -fl`;
+
+ConvertSelectionToUVs;
+SelectUVBorder;
+fSelConnEdge;
+
+string $fUVbord[] = `ls -sl -fl`;
+
+select $fStartObj;
+fSelectObjBorder;
+
+string $fOBJbord[] = `ls -sl -fl`;
+
+select $fStartObj;
+fHardEdgeSel;
+string $fAllHard[] = `ls -sl -fl`;
+
+
+select $fStartObj;
+ConvertSelectionToEdges;
+
+string $fAllEdge[] = `ls -sl -fl`;
+
+ConvertSelectionToFaces;
+
+polyPoke  -ch 1;
+
+select $fAllEdge;
+select -d $fOBJbord $fUVbord $fAllHard;
+DeleteEdge;
+} //end fInvertTopology
+
+
+global proc fSelConnEdge()
+{
+global string $fFinalConnEdge[];
+$fFinalConnEdge = {};
+ConvertSelectionToVertices;
+
+string $fStartSelVert[] = `ls -sl -fl`;
+
+ConvertSelectionToEdges;
+
+string $fAllEdge[] = `ls -sl -fl`;
+string $fForEdge;
+
+int $checkSize = `size $fAllEdge`;
+
+progressWindow
+    -title "Select Edges"
+    -progress 0
+    -max $checkSize
+    -status "Start"
+    -isInterruptable 1;
+
+int $Comp = 1;
+
+for ($fForEdge in $fAllEdge) 
+{
+if ( `progressWindow -query -isCancelled` ) break;
+
+select $fForEdge;
+ConvertSelectionToVertices;
+select -d $fStartSelVert;
+string $fSelVert[] = `ls -sl -fl`;
+if (`size $fSelVert` == 0) $fFinalConnEdge[`size $fFinalConnEdge`] = $fForEdge;
+
+progressWindow -edit 
+               -status ($Comp+" ("+$checkSize+")")
+               -progress $Comp;
+
+$Comp = $Comp + 1;
+} //end for in
+
+select $fFinalConnEdge;
+
+hilite -r `ls -sl -o`;
+$fFinalConnEdge = {};
+
+progressWindow -endProgress;
+} //end fSelConnEdge
+
+
+global proc fSelectObjBorder()
+{
+string $fStartSelect[] = `ls -sl -fl -o`;
+select $fStartSelect;
+ConvertSelectionToEdges;
+
+SelectUVBorder;
+
+hilite -r $fStartSelect;
+}
+
+
+global proc fHardEdgeSel()
+{
+print "fHardEdgeSel;\n";
+
+fSelectObjBorder;
+string $fDeSelect[] = `ls -sl -fl`;
+
+
+string $fStartSelect[] = `ls -sl -fl -o`;
+select $fStartSelect;
+ConvertSelectionToEdges;
+
+string $fSelectEdge[] = `ls -sl -fl`;
+string $fForEdge;
+select -cl;
+
+for ($fForEdge in $fSelectEdge)
+{
+string $HardTest[] = `polyInfo -ev $fForEdge`;
+if (endString (`strip  $HardTest[0]`,4) == "Hard") 
+ {
+ select -add $fForEdge;
+ }
+}
+
+select -d $fDeSelect;
+
+hilite -r $fStartSelect;
+}fInvertTopology;

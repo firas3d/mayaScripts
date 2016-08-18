@@ -1,0 +1,97 @@
+//smart invert topology (SIT)
+//ver 1.1 : This mel should tessellate the polyon mesh by triangle twice in a SMART way:)
+//ver 2.0 : super fast, because it use polyPoke
+//It works fine in Quadratic mesh.. And very bad on ngon poly
+//Very useful on Cloth modeling
+//
+//
+//Firas J.Ershead - 06.11.2006
+//firasershead@hotmail.com
+//
+//
+//Usage: 		Select one poly object, execute the mel.
+//
+//Warning:	This may take long time on hi-poly mesh, save your file before use, 
+//					I know, its not realy smart at this version :)
+//
+
+
+global proc int selectedEdgeToID (string $svtx)
+	{
+	int $result;
+	string $tokStr[],$numStr[],$objName;
+	tokenize $svtx "[" $tokStr;
+	tokenize $tokStr[1] "]" $numStr;
+	
+	$result=int($numStr[0]) ;
+	return $result;
+	} // end of selectedToID
+
+global proc smartInvertTopology()
+{
+	$sel = `ls -sl -tr`;
+	string $orObj = $sel[0];
+	select -r $orObj ;
+	$n = `duplicate -rr`;
+	hide $orObj;
+	string $newObj= $n[0];
+	select -r $newObj;
+	string $sitVer = "2.0";
+
+	$newShape = `listRelatives -c -s $newObj`;
+
+	select -d;
+	$orEdgesSize = `polyEvaluate -e $orObj`;
+	$orVtxSize = `polyEvaluate -v $orObj`;
+
+	//find non quadratic edges
+	select -r $orObj;
+	polyCleanupArgList 3 { "0","2","1","1","0","0","0","0","0","1e-005","0","1e-005","0","1e-005","0","1","0" };
+	InvertSelection;
+	ConvertSelectionToEdges;
+	$triEdges = `ls -sl -fl`;
+	string $notToDelete[];
+	$i = 0;
+	for ($e in $triEdges) {
+		int $id = selectedEdgeToID($e);
+		$notToDelete[$i] = $id;
+		$i++;
+	}
+
+	select -d;
+
+	select -r ($newObj+".e[0:"+($orEdgesSize[0])+"]");
+	$orEdges = `ls -sl -fl`;
+
+	select -r ($newObj+".vtx[0:"+($orVtxSize[0])+"]");
+	$orVtx = `ls -sl -fl`;
+
+	select -r ($newObj+".e[0:"+($orEdgesSize[0]-1)+"]");
+	$toDelEdges = `ls -sl -fl`;
+
+	invertSelection;
+	$newEdges1 = `ls -sl -fl`;
+
+	select -r $newObj;
+	//select quad faces
+	polyCleanupArgList 3 { "0","2","1","1","0","0","0","0","0","1e-005","0","1e-005","0","1e-005","0","1","0" };
+	$quadFaces = `ls -sl`;
+	//pokeFaces
+	polyPoke  -ws 1  -tx 0 -ty 0 -tz 0 -ltx 0 -lty 0 -ltz 0 -ch 1 $quadFaces;
+
+	select -r $toDelEdges;
+
+	for ($i=0;$i<size($notToDelete);$i++)
+		select -d ($newObj+".e["+$notToDelete[$i]+"]");
+
+	doDelete;
+	select $newObj;
+	DeleteHistory;
+ 	$hideResult = `confirmDialog -title "smartInvertTopology" -message "Hide Original Object?" -button "Yes" -button "No" -defaultButton "Yes"	-cancelButton "No" -dismissString "No"`;
+  if ($hideResult != "Yes") showHidden -a $orObj;
+	changeSelectMode -object;
+	//$selectNewVtxResult = `confirmDialog -title "smartInvertTopology" -message "select new vetrices?" -button "Yes" -button "No" -defaultButton "No"	-cancelButton "No" -dismissString "No"`;
+  //if ($selectNewVtxResult == "Yes") {	select -r $orVtx;	invertSelection; }
+}
+
+smartInvertTopology;
