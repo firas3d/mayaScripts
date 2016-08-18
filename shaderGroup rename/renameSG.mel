@@ -1,0 +1,26 @@
+
+/*
+//list shaders from selected object
+string $shapes[]=`listRelatives -shapes`;
+for($shape in $shapes)
+{
+string $shadeGrp[]=`listConnections -type "shadingEngine" $shape`;
+print($shadeGrp[0] + "\n");
+string $shader[] = `listConnections ($shadeGrp[0]+".surfaceShader")`;
+print($shader[0] + "\n");
+}
+*/
+
+
+// rename shader group from selected shader
+string $nodes[] = `ls -sl`;
+for ($node in $nodes){
+string $SGName[] = `listConnections -t "shadingEngine" $node`;
+if (`size $SGName` != 0)
+    {
+    string $newSGName = ($node + "SG");
+    rename $SGName $newSGName;
+    print ("Renaming ShadingGroup node " + $SGName[0] + " to " + $newSGName + "\n");
+    }
+}
+select -r $nodes;
