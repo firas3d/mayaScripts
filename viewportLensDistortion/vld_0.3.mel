@@ -1,0 +1,184 @@
+//veiwport lens distortion (VLD.mel)
+//ver 0.3 22.09.07
+//Firas J.Ershead
+
+global proc string trasToShape(string $transName)
+{
+	$sel = `ls -sl`;
+	select -r $transName;
+	string $shapes[] =`ls -sl -s -dag`;
+	select $sel;
+	return $shapes[0];
+}
+
+global proc string checkSelection()
+{
+	$v = "";
+	$sel = `ls -sl`;
+	if (size($sel)==1) if (nodeType (trasToShape($sel[0])) == "camera") $v=$sel[0];
+	return $v;
+}
+
+global proc addFOV(string $cameraShape,string $obj)
+{
+	string $expString = ("float $fov = (0.5 * "+$cameraShape+".horizontalFilmAperture) / ("+$cameraShape+".focalLength * 0.03937);\n");
+	$expString = $expString + "$fov = 2.0 * atan ($fov);\n$fov = 57.29578 * $fov;\n";
+	$expString = $expString + $obj+".scaleX= 2 * (-"+$obj+".translateZ * tan(deg_to_rad($fov/2)) );\n";
+	$expString = ($expString + "float $fov = (0.5 * "+$cameraShape+".verticalFilmAperture) / ("+$cameraShape+".focalLength * 0.03937);\n");
+	$expString = ($expString + "$fov = 2.0 * atan ($fov);\n$fov = 57.29578 * $fov;\n"); 
+	$expString = ($expString + $obj+".scaleY= 2 * (-"+$obj+".translateZ * tan(deg_to_rad($fov/2)) );");
+
+	expression -s $expString -n ($obj+"Exp");
+}
+
+global proc string getPolyPlaneNode(string $obj){
+	$sel = `ls -sl`;
+	$list = `listConnections (trasToShape($obj))`;
+	select $list;
+	$x = `ls -sl -type "polyPlane"`;
+	select $sel;
+	return $x[0];
+}
+
+global proc GLD() //grid lens distort
+{
+	$GLD = "GLD";
+	$defResX = 18;
+	$defResY = 16;
+
+	if (checkSelection() == "") print("select camera to apply GLD");
+	if (checkSelection() != "") {
+		$cameraTr = checkSelection();
+		$cameraShape = trasToShape ($cameraTr);
+		
+		//create polyPlanes
+		$gridScreen = `polyPlane -n ($GLD+"screenGrid") -ch on -o on -ax 0 0 1 -sw $defResX -sh $defResY -cuv 2` ;
+		$gridCenter= `polyPlane -n ($GLD+"wrapGridCenter") -ch on -o on -ax 0 0 1 -sw $defResX -sh $defResY -cuv 2` ;
+		$gridFront = `polyPlane -n ($GLD+"wrapGridFront") -ch on -o on -ax 0 0 1 -sw $defResX -sh $defResY -cuv 2` ;
+		$gridBack = `polyPlane -n ($GLD+"wrapGridBack") -ch on -o on -ax 0 0 1 -sw $defResX -sh $defResY -cuv 2` ;
+		
+		
+		//parent to camera
+		parent -r $gridScreen $cameraTr;
+		parent -r $gridFront $cameraTr;
+		parent -r $gridBack $cameraTr;
+		parent -r $gridCenter $cameraTr;
+		
+		//connect outMesh to inMesh
+		$gridScreenshape = trasToShape($gridScreen[0]);
+		$gridFrontshape = trasToShape($gridFront[0]);
+		$gridBackshape = trasToShape($gridBack[0]);
+		$gridCentershape = trasToShape($gridCenter[0]);
+		
+		connectAttr -f ($gridScreenshape+".outMesh") ($gridFrontshape+".inMesh");
+		connectAttr -f ($gridScreenshape+".outMesh") ($gridBackshape+".inMesh");
+		connectAttr -f ($gridScreenshape+".outMesh") ($gridCentershape+".inMesh");
+		
+		//remove planes shading
+		setAttr ($gridScreenshape+".overrideEnabled") 1;
+		setAttr ($gridScreenshape+".overrideShading") 0;
+		setAttr ($gridFrontshape+".overrideEnabled") 1;
+		setAttr ($gridFrontshape+".overrideShading") 0;
+		setAttr ($gridBackshape+".overrideEnabled") 1;
+		setAttr ($gridBackshape+".overrideShading") 0;
+		setAttr ($gridCentershape+".overrideEnabled") 1;
+		setAttr ($gridCentershape+".overrideShading") 0;
+		
+		//create FOV expressions
+		addFOV($cameraShape,$gridScreen[0]);
+		addFOV($cameraShape,$gridCenter[0]);
+		
+		//position planes
+		$nearClip = `getAttr ($cameraShape+".nearClipPlane")`;
+		setAttr ($gridScreen[0]+".tz") (-$nearClip-1);
+		
+		$centerClip = `getAttr ($cameraShape+".centerOfInterest")`;
+		setAttr ($gridCenter[0]+".tz") (-$centerClip);
+		
+		$farClip = `getAttr ($cameraShape+".farClipPlane")` *.25;
+		setAttr ($gridFront[0]+".tz") (-$farClip-$centerClip);
+
+		connectAttr -f ($gridCenter[0]+".sx") ($gridBack[0]+".sx");
+		connectAttr -f ($gridCenter[0]+".sy") ($gridBack[0]+".sy");
+		
+		setAttr ($gridBack[0]+".tz") ($farClip-$centerClip);
+		connectAttr -f ($gridCenter[0]+".sx") ($gridFront[0]+".sx");
+		connectAttr -f ($gridCenter[0]+".sy") ($gridFront[0]+".sy");
+		
+		
+		/*
+		//resolution UI
+		$uiWindow =`window -title "Grid Lens Distort"`;
+    		columnLayout;
+    		attrFieldSliderGrp -min 4 -max 30 -at (getPolyPlaneNode($gridScreen[0])+".subdivisionsWidth");
+    		attrFieldSliderGrp -min 4 -max 30 -at (getPolyPlaneNode($gridScreen[0])+".subdivisionsHeight");
+    		button -label "Create Grid Lens Distortion" -align "center";
+		showWindow $uiWindow ;	
+		*/
+		
+		//createLatticeCube
+		$resX = `getAttr (getPolyPlaneNode($gridScreen[0])+".subdivisionsWidth")`;
+		$resY = `getAttr (getPolyPlaneNode($gridScreen[0])+".subdivisionsHeight")`;
+		$latticeCube = `polyCube  -ch on -o on -sw 1 -sh 1 -cuv 4 -n ($GLD+"_latticeCube")`;
+		
+		parent -r $latticeCube[0] $cameraTr;
+		//change box Pivot
+		//setAttr ($latticeCube[0]+".rotatePivotZ") -.5;
+		//setAttr ($latticeCube[0]+".scalePivotZ") -.5;
+		
+		setAttr ($latticeCube[0]+".tz") (-$centerClip);
+		setAttr  ($latticeCube[0]+".sx") `getAttr ($gridCenter[0]+".sx")`;
+		setAttr  ($latticeCube[0]+".sy") `getAttr ($gridCenter[0]+".sy")`;
+		setAttr  ($latticeCube[0]+".sz") ($farClip*2);
+		
+		//creat real lattice
+		select -r $latticeCube;
+		$lattice = `lattice -divisions ($resX+1) ($resY+1) 3 -objectCentered true -ldv 4 4 4 -ol 2 -ofd 1000`;
+		
+		select - r `listConnections -d off -s on ($lattice[0]+".deformedLatticePoints")`;
+		pickWalk -d up;
+		$latticeName = `ls -sl`;
+		
+		//wrap lattice point to planes
+		//center points
+		select -r ($latticeName[0]+".pt[0:"+$defResX+"][0:"+$defResY+"][1]") ;
+		select -add $gridCenter[0];
+		string $wrapCenter[] = `doWrapArgList "2" { "1","0","0.1" }`;
+	
+		//front points
+		select -r ($latticeName[0]+".pt[0:"+$defResX+"][0:"+$defResY+"][0]") ;
+		select -add $gridFront[0];
+		string $wrapFront[] = `doWrapArgList "2" { "1","0","0.1" }`;
+
+		//back points
+		select -r ($latticeName[0]+".pt[0:"+$defResX+"][0:"+$defResY+"][2]") ;
+		select -add $gridBack[0];
+		string $wrapBack[] = `doWrapArgList "2" { "1","0","0.1" }`;
+
+		//add wrap attributes to camera
+		$attrLimits={-10,10};
+		$wrapAttr={"wrapCenter","wrapFar","wrapNear","wrapGlobal"};
+		for ($att in $wrapAttr) if (!`attributeExists $att $cameraTr`) {
+			addAttr -ln $att -at double  -min ($attrLimits[0]) -max ($attrLimits[1]) -dv 1 $cameraTr;
+			setAttr -e -keyable true ($cameraTr+"."+$att);
+		}
+		
+		//connect attr to wraps
+		connectAttr -f ($cameraTr+"."+$wrapAttr[0]) ($wrapCenter[0]+".envelope");
+		connectAttr -f ($cameraTr+"."+$wrapAttr[1]) ($wrapFront[0]+".envelope");
+		connectAttr -f ($cameraTr+"."+$wrapAttr[2]) ($wrapBack[0]+".envelope");
+		connectAttr -f ($cameraTr+"."+$wrapAttr[3]) ($lattice[0]+".envelope");
+		
+		//hide Cube
+		setAttr ($latticeCube[0]+".visibility") 0;
+		
+		select $cameraTr;
+	
+	}//end if check selection
+	
+}
+GLD;
+
+//11.parent wrap base to wrap
+//12.parent lattice to wrap
+//13.create layer & hide
